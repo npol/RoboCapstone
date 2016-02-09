@@ -22,6 +22,8 @@
 #include "MCP2515.h"
 #include "uart.h"
 
+void debug_task(void);
+
 
 /*
  * main.c
@@ -46,18 +48,7 @@ int main(void) {
 	P3OUT &= ~0xf;
 
 	while(1){
-		uart_send_string("Hello World!\n",13);
-		uint16_t i;
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
-		for(i=0; i < 40000; i++);
+		debug_task();
 
 	}
 
@@ -123,6 +114,22 @@ int main(void) {
 	return 0;
 }
 
+/** Debug Task functions **/
+
+void debug_task(void){
+	if(is_uart_rx_data_ready()){
+		uint8_t rx_byte = uart_get_byte();
+		uart_send_byte(rx_byte);	//Echo back character
+		if(rx_byte == 13){			//Enter pressed (CR)
+			uart_send_byte(10);		//Line feed
+			uart_send_byte('>');	//Terminal prompt
+		}
+	}
+}
+
+
+/** END Debug Task functions **/
+
 /* SPI/UART Rx Interrupt Handler
  * SPI Rx: puts most recent character in SPI datastructure
  * UART Rx:
@@ -131,13 +138,13 @@ int main(void) {
 __interrupt void USCI0RX_ISR(void){
 	if((IFG2 & UCA0RXIFG) && (IE2 & UCA0RXIE)){	//UART Rxbuf full interrupt
 		//Get byte and clear interrupt
-		UART_data.rx_bytes[UART_data.rx_tail] = UCA0RXBUF;
-		UART_data.rx_tail++;
+		UART_data.rx_bytes[UART_data.rx_head] = UCA0RXBUF;
+		UART_data.rx_head++;
 		//Wraparound condition
-		if(UART_data.rx_tail >= UART_RX_BUF_SIZE){
-			UART_data.rx_tail = 0;
+		if(UART_data.rx_head >= UART_RX_BUF_SIZE){
+			UART_data.rx_head = 0;
 		}
-		//if(UART_data.rx_tail == UART_data.rx_head)
+		//if(UART_data.rx_head == UART_data.rx_tail)
 			//TODO: Log error: buffer full
 	} else
 	if((IFG2 & UCB0RXIFG) && (IE2 & UCB0RXIE)){	//SPI Rxbuf full interrupt
@@ -161,14 +168,14 @@ __interrupt void USCI0RX_ISR(void){
 __interrupt void USCI0TX_ISR(void){
 	if((IFG2 & UCA0TXIFG) && (IE2 & UCA0TXIE)){			//UART Txbuf ready interrupt
 		//Load data and clear interrupt
-		UCA0TXBUF = UART_data.tx_bytes[UART_data.tx_head];
-		UART_data.tx_head++;
+		UCA0TXBUF = UART_data.tx_bytes[UART_data.tx_tail];
+		UART_data.tx_tail++;
 		//Wraparound condition
-		if(UART_data.tx_head >= UART_TX_BUF_SIZE){
-			UART_data.tx_head = 0;
+		if(UART_data.tx_tail >= UART_TX_BUF_SIZE){
+			UART_data.tx_tail = 0;
 		}
 		//Disable Tx interrupt if last byte in buffer has been transmitted
-		if(UART_data.tx_head == UART_data.tx_tail){
+		if(UART_data.tx_tail == UART_data.tx_head){
 			disable_uart_txint();
 		}
 	} else

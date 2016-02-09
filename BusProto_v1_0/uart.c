@@ -45,12 +45,12 @@ void enable_uart_txint(void){
 }
 
 void uart_send_byte(uint8_t data){
-	UART_data.tx_bytes[UART_data.tx_tail] = data;
-	UART_data.tx_tail++;
-	if(UART_data.tx_tail >= UART_TX_BUF_SIZE){	//Wraparound condition
-		UART_data.tx_tail = 0;
+	UART_data.tx_bytes[UART_data.tx_head] = data;
+	UART_data.tx_head++;
+	if(UART_data.tx_head >= UART_TX_BUF_SIZE){	//Wraparound condition
+		UART_data.tx_head = 0;
 	}
-	if(UART_data.tx_tail == UART_data.tx_head){	//Buffer overflow
+	if(UART_data.tx_head == UART_data.tx_tail){	//Buffer overflow
 		//Error: buffer full
 	}
 	enable_uart_txint();		//Data sent via UART interrupt
@@ -60,10 +60,10 @@ void uart_send_byte(uint8_t data){
 void uart_send_string(uint8_t *data, uint8_t size){
 	uint8_t i = 0;
 	for(i = 0; i < size; i++){
-		UART_data.tx_bytes[UART_data.tx_tail] = data[i];
-		UART_data.tx_tail++;
-		if(UART_data.tx_tail >= UART_TX_BUF_SIZE){
-			UART_data.tx_tail = 0;
+		UART_data.tx_bytes[UART_data.tx_head] = data[i];
+		UART_data.tx_head++;
+		if(UART_data.tx_head >= UART_TX_BUF_SIZE){
+			UART_data.tx_head = 0;
 		}
 		if(UART_data.tx_tail == UART_data.tx_head){	//Buffer overflow
 			//Error: buffer full
@@ -73,9 +73,23 @@ void uart_send_string(uint8_t *data, uint8_t size){
 	return;
 }
 
-uint8_t uart_get_byte(void){
-	return 0;
+/* Application calls function to check if there is data
+ * to be processed
+ */
+uint8_t is_uart_rx_data_ready(void){
+	return UART_data.rx_tail != UART_data.rx_head;
+}
 
+uint8_t uart_get_byte(void){
+	uint8_t rx_byte = UART_data.rx_bytes[UART_data.rx_tail];
+	UART_data.rx_tail++;
+	if(UART_data.rx_tail >= UART_RX_BUF_SIZE){	//Wraparound condition
+		UART_data.rx_tail = 0;
+	}
+	if(UART_data.rx_head == UART_data.rx_tail){
+		//TODO flag error, buffer overflow
+	}
+	return rx_byte;
 }
 
 uint8_t uart_get_string(uint8_t *buffer, uint8_t size){

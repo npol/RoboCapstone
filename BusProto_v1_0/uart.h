@@ -34,6 +34,7 @@ void uart_send_byte(uint8_t data);
 void uart_send_string(uint8_t *data, uint8_t size);
 uint8_t uart_get_byte(void);
 uint8_t uart_get_string(uint8_t *buffer, uint8_t size);
+uint8_t is_uart_rx_data_ready(void);
 
 
 
