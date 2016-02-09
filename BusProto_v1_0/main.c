@@ -12,13 +12,15 @@
  * 1/24/15: Nishant Pol
  * - Added LED blink loop for HW testing, then removed loop
  * - Added SPI commands to check communication to MCP2515
- *
+ * 2/9/16: Nishant Pol
+ * - Added Debug UART Interface
  */
 #include <msp430.h> 
 #include "utils.h"
 #include "clock.h"
 #include "spi.h"
 #include "MCP2515.h"
+#include "uart.h"
 
 
 /*
@@ -34,6 +36,7 @@ int main(void) {
     P3DIR = 0xff;
     P3OUT = 0x00;
     USCIB0_SPI_setup(0,1);		//Setup SPI, idle low, out on falling edge
+    setup_uart();
     __enable_interrupt();
     setup_mcp2515();
     uint8_t btn_state_prev = 0;
@@ -41,6 +44,22 @@ int main(void) {
 	uint16_t i;
 	for(i=0; i < 40000; i++);
 	P3OUT &= ~0xf;
+
+	while(1){
+		uart_send_string("Hello World!\n",13);
+		uint16_t i;
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+		for(i=0; i < 40000; i++);
+
+	}
 
     while(1){
     	//read buttons
@@ -110,7 +129,7 @@ int main(void) {
  */
 #pragma vector=USCIAB0RX_VECTOR
 __interrupt void USCI0RX_ISR(void){
-	/*if((IFG2 & UCA0RXIFG) && (IE2 & UCA0RXIE)){	//UART Rxbuf full interrupt
+	if((IFG2 & UCA0RXIFG) && (IE2 & UCA0RXIE)){	//UART Rxbuf full interrupt
 		//Get byte and clear interrupt
 		UART_data.rx_bytes[UART_data.rx_tail] = UCA0RXBUF;
 		UART_data.rx_tail++;
@@ -120,7 +139,7 @@ __interrupt void USCI0RX_ISR(void){
 		}
 		//if(UART_data.rx_tail == UART_data.rx_head)
 			//TODO: Log error: buffer full
-	} else */
+	} else
 	if((IFG2 & UCB0RXIFG) && (IE2 & UCB0RXIE)){	//SPI Rxbuf full interrupt
 		SPI_data.rx_bytes[SPI_data.rx_ptr] = UCB0RXBUF;	//Get latest byte from HW
 		SPI_data.rx_ptr++;								//Flag reset with buffer read
@@ -140,7 +159,7 @@ __interrupt void USCI0RX_ISR(void){
  */
 #pragma vector=USCIAB0TX_VECTOR
 __interrupt void USCI0TX_ISR(void){
-	/*if((IFG2 & UCA0TXIFG) && (IE2 & UCA0TXIE)){			//UART Txbuf ready interrupt
+	if((IFG2 & UCA0TXIFG) && (IE2 & UCA0TXIE)){			//UART Txbuf ready interrupt
 		//Load data and clear interrupt
 		UCA0TXBUF = UART_data.tx_bytes[UART_data.tx_head];
 		UART_data.tx_head++;
@@ -152,7 +171,7 @@ __interrupt void USCI0TX_ISR(void){
 		if(UART_data.tx_head == UART_data.tx_tail){
 			disable_uart_txint();
 		}
-	} else */
+	} else
 	if((IFG2 & UCB0TXIFG) && (IE2 & UCB0TXIE)){	//SPI Txbuf ready interrupt
 		UCB0TXBUF = SPI_data.tx_bytes[SPI_data.tx_ptr];	//Load next byte into HW buffer
 		SPI_data.tx_ptr++;								//Flag reset with buffer write

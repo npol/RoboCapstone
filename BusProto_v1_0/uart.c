@@ -23,10 +23,10 @@ volatile struct UART_data_struct UART_data = {
  */
 void setup_uart(void){
 	UCA0CTL1 |= UCSWRST;			//Hold USCI in reset
-	UCA0CTL1 = UCSSEL_2 + UCSWRST;	//Source from SMCLK !MHz
-	UCA0BR1 = 0;					//UCBRx = 833 for 9600baud
-	UCA0BR0 = 104;
-	UCA0MCTL = UCBRS_1;
+	UCA0CTL1 = UCSSEL_2 + UCSWRST;	//Source from SMCLK 16MHz
+	UCA0BR1 = 0;					//UCBRx = 138 for 115200baud
+	UCA0BR0 = 138;
+	UCA0MCTL = UCBRS_7;
 	P1SEL |= BIT1 + BIT2;			//P1.1: TXD, P1.2: RXD
 	P1SEL2 |= BIT1 + BIT2;
 	UCA0CTL1 &= ~UCSWRST;			//Release USCI from reset
