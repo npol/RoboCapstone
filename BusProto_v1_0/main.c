@@ -28,6 +28,10 @@ void debug_task(void);
 inline void led_on(uint8_t led);
 inline void led_off(uint8_t led);
 inline uint8_t button_get(uint8_t *buf);
+inline uint8_t debug_mcp2515_read_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf);
+inline uint8_t debug_mcp2515_write_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf);
+inline uint8_t ascii2hex_byte(uint8_t high_char, uint8_t low_char);
+inline void hex2ascii_byte(uint8_t data, uint8_t *high_char, uint8_t *low_char);
 
 #define DEBUG_CMD_BUF_SIZE 32
 uint8_t debug_cmd_buf[DEBUG_CMD_BUF_SIZE];
@@ -156,11 +160,26 @@ void debug_task(void){
 		if(debug_cmd_buf_ptr == 0){
 			//No command, do nothing
 		} else if((strncmp(debug_cmd_buf,"led on",6)==0) && (debug_cmd_buf_ptr == 8)){
+			//>led on <led number 0:3>
+			//>led on 0
 			led_on(debug_cmd_buf[7]-'0');
 		} else if((strncmp(debug_cmd_buf,"led off",7)==0) && (debug_cmd_buf_ptr == 9)){
+			//>led off <led number 0:3>
+			//>led off 0
 			led_off(debug_cmd_buf[8]-'0');
 		} else if((strncmp(debug_cmd_buf,"button get",10)==0) && (debug_cmd_buf_ptr == 10)){
+			//>button get
 			response_size = button_get(response_buf);
+			uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"can regread",11)==0) && (debug_cmd_buf_ptr == 16)){
+			//>can regread <register in hex>
+			//>can regread 0x00
+			response_size = debug_mcp2515_read_reg(debug_cmd_buf,response_buf);
+			uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"can regwrite",12)==0) && (debug_cmd_buf_ptr == 22)){
+			//>can regwrite <register in hex> <data in hex>
+			//>can regwrite 0x00 0x00
+			response_size = debug_mcp2515_write_reg(debug_cmd_buf,response_buf);
 			uart_send_string(response_buf,response_size);
 		} else {
 			uart_send_string("Invalid Command",15);
@@ -202,7 +221,105 @@ inline uint8_t button_get(uint8_t *buf){
 	return 4;
 }
 
+/* Manually read MCP2515 register
+ * debug_cmd_buf: Character buffer with user command
+ * response_buf: Empty buffer to send response
+ */
+inline uint8_t debug_mcp2515_read_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf){
+	uint8_t reg_addr = ascii2hex_byte(debug_cmd_buf[14],debug_cmd_buf[15]);
+	uint8_t reg_value = mcp2515_read_register(reg_addr);
+	uint8_t ascii_value_high = '0';
+	uint8_t ascii_value_low = '0';
+	hex2ascii_byte(reg_value, &ascii_value_high, &ascii_value_low);
+	response_buf[0] = 'r';
+	response_buf[1] = 'e';
+	response_buf[2] = 'a';
+	response_buf[3] = 'd';
+	response_buf[4] = ' ';
+	response_buf[5] = '0';
+	response_buf[6] = 'x';
+	response_buf[7] = debug_cmd_buf[14];
+	response_buf[8] = debug_cmd_buf[15];
+	response_buf[9] = ':';
+	response_buf[10] = ' ';
+	response_buf[11] = '0';
+	response_buf[12] = 'x';
+	response_buf[13] = ascii_value_high;
+	response_buf[14] = ascii_value_low;
+	return 15;
+}
 
+/* Manually write MCP2515 register
+ * debug_cmd_buf: Character buffer with user command
+ * response_buf: Empty buffer to send response
+ */
+inline uint8_t debug_mcp2515_write_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf){
+	uint8_t reg_addr = ascii2hex_byte(debug_cmd_buf[15],debug_cmd_buf[16]);
+	uint8_t data = ascii2hex_byte(debug_cmd_buf[20],debug_cmd_buf[21]);
+	mcp2515_write_register(reg_addr, data);
+	response_buf[0] = 'w';
+	response_buf[1] = 'r';
+	response_buf[2] = 'i';
+	response_buf[3] = 't';
+	response_buf[4] = 'e';
+	response_buf[5] = ' ';
+	response_buf[6] = '0';
+	response_buf[7] = 'x';
+	response_buf[8] = debug_cmd_buf[15];
+	response_buf[9] = debug_cmd_buf[16];
+	response_buf[10] = ':';
+	response_buf[11] = ' ';
+	response_buf[12] = '0';
+	response_buf[13] = 'x';
+	response_buf[14] = debug_cmd_buf[20];
+	response_buf[15] = debug_cmd_buf[21];
+	return 16;
+}
+
+/* Create numerical byte from hex ascii characters
+ * high_char: ascii code for high nibble
+ * low_char: ascii code for low nibble
+ * returns numerical byte value
+ */
+inline uint8_t ascii2hex_byte(uint8_t high_char, uint8_t low_char){
+	uint8_t num = 0;
+	if(('0'<= high_char) && (high_char <= '9')){
+		num = (high_char-'0')<<4;
+	} else if(('A' <= high_char) && (high_char <= 'F')){
+		num = (high_char-'A'+10)<<4;
+	} else if(('a' <= high_char) && (high_char <= 'f')){
+		num = (high_char-'a'+10)<<4;
+	}
+	if(('0'<= low_char) && (low_char <= '9')){
+		num |= (low_char-'0');
+	} else if(('A' <= low_char) && (low_char <= 'F')){
+		num |= (low_char-'A'+10);
+	} else if(('a' <= low_char) && (low_char <= 'f')){
+		num |= (low_char-'a'+10);
+	}
+	return num;
+}
+
+/* Create ascii character representation of numerical byte
+ * data: number to be converted
+ * high_char: pointer to high nibble character
+ * low_char: pointer to low nibble character
+ */
+inline void hex2ascii_byte(uint8_t data, uint8_t *high_char, uint8_t *low_char){
+	uint8_t upper = (data>>4)&0xf;
+	uint8_t lower = (data)&0xf;
+	if(upper <= 9){
+		*high_char = upper+'0';
+	} else if((10 <= upper) && (upper <= 15)){
+		*high_char = upper-10+'A';
+	}
+	if(lower <= 9){
+		*low_char = lower+'0';
+	} else if((10 <= lower) && (lower <= 15)){
+		*low_char = lower-10+'A';
+	}
+	return;
+}
 
 
 /** END Debug Task functions **/
