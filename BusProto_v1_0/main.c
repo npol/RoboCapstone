@@ -21,8 +21,18 @@
 #include "spi.h"
 #include "MCP2515.h"
 #include "uart.h"
+#include <string.h>
 
+/** Debug task macros and globals **/
 void debug_task(void);
+inline void led_on(uint8_t led);
+inline void led_off(uint8_t led);
+inline uint8_t button_get(uint8_t *buf);
+
+#define DEBUG_CMD_BUF_SIZE 32
+uint8_t debug_cmd_buf[DEBUG_CMD_BUF_SIZE];
+uint8_t debug_cmd_buf_ptr = 0;
+/** END Debug task macros and globals **/
 
 
 /*
@@ -117,15 +127,82 @@ int main(void) {
 /** Debug Task functions **/
 
 void debug_task(void){
+	uint8_t debug_cmd_ready = 0;
+	uint8_t response_buf[DEBUG_CMD_BUF_SIZE];
+	uint8_t response_size = 0;
+	//Check if serial data is ready to be formed into a command
 	if(is_uart_rx_data_ready()){
 		uint8_t rx_byte = uart_get_byte();
-		uart_send_byte(rx_byte);	//Echo back character
+
+		//Enter (CR) indicates command is complete
 		if(rx_byte == 13){			//Enter pressed (CR)
+			uart_send_byte(13);		//CR
 			uart_send_byte(10);		//Line feed
-			uart_send_byte('>');	//Terminal prompt
+			debug_cmd_ready = 1;	//Reset command buffer
+		} else {//Fill command buffer
+			uart_send_byte(rx_byte);	//Echo back character
+			debug_cmd_buf[debug_cmd_buf_ptr] = rx_byte;
+			if(debug_cmd_buf_ptr < DEBUG_CMD_BUF_SIZE){
+				debug_cmd_buf_ptr++;
+			} else {
+				//Buffer is full
+			}
+
 		}
+
+	}
+	//Process command
+	if(debug_cmd_ready){
+		if(debug_cmd_buf_ptr == 0){
+			//No command, do nothing
+		} else if((strncmp(debug_cmd_buf,"led on",6)==0) && (debug_cmd_buf_ptr == 8)){
+			led_on(debug_cmd_buf[7]-'0');
+		} else if((strncmp(debug_cmd_buf,"led off",7)==0) && (debug_cmd_buf_ptr == 9)){
+			led_off(debug_cmd_buf[8]-'0');
+		} else if((strncmp(debug_cmd_buf,"button get",10)==0) && (debug_cmd_buf_ptr == 10)){
+			response_size = button_get(response_buf);
+			uart_send_string(response_buf,response_size);
+		} else {
+			uart_send_string("Invalid Command",15);
+		}
+		uart_send_byte(13);		//CR
+		uart_send_byte(10);		//Line feed
+		uart_send_byte('>');	//Terminal prompt
+		debug_cmd_ready = 0;
+		debug_cmd_buf_ptr = 0;
 	}
 }
+
+/* Turn on LED
+ * led: LED number/port 3 number
+ */
+inline void led_on(uint8_t led){
+	P3OUT |= 0x0f&(1<<led);
+	return;
+}
+
+/* Turn off LED
+ * led: LED number/port 3 number
+ */
+inline void led_off(uint8_t led){
+	P3OUT &= ~(0x0f&(1<<led));
+	return;
+}
+
+/* Get button status
+ * buf: response buffer
+ * returns size of message
+ */
+inline uint8_t button_get(uint8_t *buf){
+	uint8_t button_state = P2IN & 0xf;
+	buf[0] = '0'+(button_state & 1);
+	buf[1] = '0'+((button_state>>1) & 1);
+	buf[2] = '0'+((button_state>>2) & 1);
+	buf[3] = '0'+((button_state>>3) & 1);
+	return 4;
+}
+
+
 
 
 /** END Debug Task functions **/
