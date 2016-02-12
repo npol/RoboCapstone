@@ -49,7 +49,7 @@ void mcp2515_reset(void);
 #define MCP2515_TXB0SIDL	0x32	//Buffer 0, SID[2:0] in bit[7:5], EID[17:16] in bit[1:0]
 #define MCP2515_TXB1SIDL	0x42	//Buffer 1, SID[2:0] in bit[7:5], EID[17:16] in bit[1:0]
 #define MCP2515_TXB2SIDL	0x52	//Buffer 2, SID[2:0] in bit[7:5], EID[17:16] in bit[1:0]
-#define MCP2515_TxEXIDE		BIT3	//Extended Identifier Enable: 1=use extended, 0=use standard
+#define MCP2515_TXEXIDE		BIT3	//Extended Identifier Enable: 1=use extended, 0=use standard
 
 //Transmit Buffer Extended Identifier High
 #define MCP2515_TXB0EID8	0x33	//Buffer 0, EID[15:8] in bit[7:0]

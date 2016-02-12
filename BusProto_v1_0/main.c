@@ -23,8 +23,20 @@
 #include "uart.h"
 #include <string.h>
 
+void button_task(void);
+void led_task(void);
+inline uint8_t P1_get(uint8_t *buf);
+inline uint8_t P2_get(uint8_t *buf);
+inline uint8_t P3_get(uint8_t *buf);
+uint8_t btn_state_prev = 0;
+
+/** CAN macros and globals **/
+void can_tx_message_buf0(uint16_t sid, uint8_t len, uint8_t *data);
+
+/** END CAN macros and globals **/
 /** Debug task macros and globals **/
 void debug_task(void);
+
 inline void led_on(uint8_t led);
 inline void led_off(uint8_t led);
 inline uint8_t button_get(uint8_t *buf);
@@ -32,6 +44,7 @@ inline uint8_t debug_mcp2515_read_reg(uint8_t *debug_cmd_buf,uint8_t *response_b
 inline uint8_t debug_mcp2515_write_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf);
 inline uint8_t ascii2hex_byte(uint8_t high_char, uint8_t low_char);
 inline void hex2ascii_byte(uint8_t data, uint8_t *high_char, uint8_t *low_char);
+
 
 #define DEBUG_CMD_BUF_SIZE 32
 uint8_t debug_cmd_buf[DEBUG_CMD_BUF_SIZE];
@@ -55,7 +68,7 @@ int main(void) {
     setup_uart();
     __enable_interrupt();
     setup_mcp2515();
-    uint8_t btn_state_prev = 0;
+
 	P3OUT |= 0xf;
 	uint16_t i;
 	for(i=0; i < 40000; i++);
@@ -63,7 +76,8 @@ int main(void) {
 
 	while(1){
 		debug_task();
-
+		button_task();
+		led_task();
 	}
 
     while(1){
@@ -124,9 +138,63 @@ int main(void) {
     }
 
 
-	
-	return 0;
 }
+
+/** Main application task functions **/
+void button_task(void){
+	//read buttons
+	uint8_t btn_state = ~P2IN & 0xf;
+	if(btn_state != btn_state_prev){
+		btn_state_prev = btn_state;
+		//Send CAN message to update LEDs
+		can_tx_message_buf0(0x279,1,&btn_state);
+		uart_send_string("CAN TX",6);
+	}
+}
+
+void led_task(void){
+	if(!(P1IN&BIT3)){
+		P3OUT = (P3OUT & 0xf0) | (0xf&mcp2515_read_register(0x66));
+		mcp2515_write_register(0x2C, 0);	//Clear interrupts
+		if(mcp2515_read_register(0x2D)&BIT6){
+			uart_send_string("Overflow",8);
+			mcp2515_write_register(0x2D,0x00);
+		}
+		while(!(P1IN&BIT3)){	//Check if interrupt cleared
+			P3OUT ^= 0xf;
+			uint16_t i;
+			for(i=0; i < 40000; i++);
+			mcp2515_write_register(0x2C, 0);	//Clear interrupts
+		}
+		uart_send_string("CAN RX",6);
+	}
+}
+
+/** END main application task functions **/
+
+/** CAN functions **/
+
+/* Initiate message transmission
+ * sid: Standard identifier, lowest 10 bits
+ * len: number of data bytes
+ * data: array of data bytes
+ */
+void can_tx_message_buf0(uint16_t sid, uint8_t len, uint8_t *data){
+	//Standard Identifier
+	mcp2515_write_register(MCP2515_TXB0SIDH,(uint8_t)(sid>>3));
+	mcp2515_write_register(MCP2515_TXB0SIDL,(uint8_t)(sid<<5));
+	//Data length
+	mcp2515_write_register(MCP2515_TXB0DLC,len);
+	//Data bytes
+	uint8_t i;
+	for(i=0; i<len;i++){
+		mcp2515_write_register(MCP2515_TXB0D0+i,data[i]);
+	}
+	//Transmit request
+	mcp2515_write_register(MCP2515_TXB0CTRL, MCP2515_TXREQ|MCP2515_TXP_3);
+}
+
+/** END CAN functions **/
 
 /** Debug Task functions **/
 
@@ -181,6 +249,15 @@ void debug_task(void){
 			//>can regwrite 0x00 0x00
 			response_size = debug_mcp2515_write_reg(debug_cmd_buf,response_buf);
 			uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P1 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P1_get(response_buf);
+			uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P2 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P2_get(response_buf);
+			uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P3 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P3_get(response_buf);
+			uart_send_string(response_buf,response_size);
 		} else {
 			uart_send_string("Invalid Command",15);
 		}
@@ -218,6 +295,27 @@ inline uint8_t button_get(uint8_t *buf){
 	buf[1] = '0'+((button_state>>1) & 1);
 	buf[2] = '0'+((button_state>>2) & 1);
 	buf[3] = '0'+((button_state>>3) & 1);
+	return 4;
+}
+
+inline uint8_t P1_get(uint8_t *buf){
+	buf[0] = '0';
+	buf[1] = 'x';
+	hex2ascii_byte(P1IN,&buf[2],&buf[3]);
+	return 4;
+}
+
+inline uint8_t P2_get(uint8_t *buf){
+	buf[0] = '0';
+	buf[1] = 'x';
+	hex2ascii_byte(P2IN,&buf[2],&buf[3]);
+	return 4;
+}
+
+inline uint8_t P3_get(uint8_t *buf){
+	buf[0] = '0';
+	buf[1] = 'x';
+	hex2ascii_byte(P3IN,&buf[2],&buf[3]);
 	return 4;
 }
 
