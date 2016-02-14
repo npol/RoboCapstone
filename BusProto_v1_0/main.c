@@ -23,7 +23,7 @@
 #include "uart.h"
 #include <string.h>
 
-#define PC_CAN
+//#define PC_CAN
 
 void button_task(void);
 void led_task(void);
@@ -81,6 +81,7 @@ int main(void) {
 	P3OUT |= 0xf;
 	uint16_t i;
 	for(i=0; i < 40000; i++);
+	setup_mcp2515();
 	P3OUT &= ~0xf;
 
 	while(1){
@@ -140,7 +141,7 @@ void debug_rx_task(void){
 			mcp2515_write_register(0x2D,0x00);
 		}
 		while(!(P1IN&BIT3)){	//Check if interrupt cleared
-			P3OUT ^= 0xf;
+			P3OUT ^= 0x7;
 			uint16_t i;
 			for(i=0; i < 40000; i++);
 			mcp2515_write_register(0x2C, 0);	//Clear interrupts
