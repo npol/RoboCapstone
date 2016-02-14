@@ -23,6 +23,8 @@
 #include "uart.h"
 #include <string.h>
 
+#define PC_CAN
+
 void button_task(void);
 void led_task(void);
 inline uint8_t P1_get(uint8_t *buf);
@@ -33,9 +35,15 @@ uint8_t btn_state_prev = 0;
 /** CAN macros and globals **/
 void can_tx_message_buf0(uint16_t sid, uint8_t len, uint8_t *data);
 
+#define CAN_RX_BUF_SIZE 8
+uint8_t can_rx_buf[CAN_RX_BUF_SIZE];
+uint8_t can_rx_buf_head = 0;
+uint8_t can_rx_buf_tail = 0;
+
 /** END CAN macros and globals **/
 /** Debug task macros and globals **/
 void debug_task(void);
+void debug_rx_task(void);
 
 inline void led_on(uint8_t led);
 inline void led_off(uint8_t led);
@@ -44,6 +52,7 @@ inline uint8_t debug_mcp2515_read_reg(uint8_t *debug_cmd_buf,uint8_t *response_b
 inline uint8_t debug_mcp2515_write_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf);
 inline uint8_t ascii2hex_byte(uint8_t high_char, uint8_t low_char);
 inline void hex2ascii_byte(uint8_t data, uint8_t *high_char, uint8_t *low_char);
+inline uint8_t debug_can_rx(uint8_t *response_buf);
 
 
 #define DEBUG_CMD_BUF_SIZE 32
@@ -77,67 +86,9 @@ int main(void) {
 	while(1){
 		debug_task();
 		button_task();
-		led_task();
+		//led_task();
+		debug_rx_task();
 	}
-
-    while(1){
-    	//read buttons
-    	uint8_t btn_state = ~P2IN & 0xf;
-    	if(btn_state != btn_state_prev){
-    		btn_state_prev = btn_state;
-    		//Send CAN message to update LEDs
-        	mcp2515_write_register(0x36, btn_state);	//Data, 1 byte
-        	mcp2515_write_register(0x35, 1);			//1 byte Data frame
-        	mcp2515_write_register(0x31, 0x4f);			//SID[10:3] = 0x4f
-        	mcp2515_write_register(0x32, 0x40);			//SID[2:0] = 0x2
-        	mcp2515_write_register(0x30, 0x0B);			//Transmit message
-    	}
-    	//output to LEDs if CAN message recieved
-    	int i;
-
-    	if(P1IN&BIT3){
-    		P3OUT = (P3OUT & 0xf0) | mcp2515_read_register(0x66);
-        	mcp2515_write_register(0x2C, 0);	//Clear interrupts
-        	while(!(P1IN&BIT3)){	//Check if interrupt cleared
-        		P3OUT ^= 0xf;
-        		uint16_t i;
-        		for(i=0; i < 40000; i++);
-        		mcp2515_write_register(0x2C, 0);	//Clear interrupts
-        	}
-
-    	}
-    }
-
-    while(1){
-    	uint16_t i;
-    	volatile uint8_t rx_bytes[4];	//SID[10:3], SID[2:0], data
-    	volatile uint8_t val = 0;
-    	P3OUT |= 0xf;
-    	for(i=0; i<10000;i++);
-    	P3OUT &= ~0xf;
-    	for(i=0; i<10000;i++);
-    	//Send dummy message
-    	val = mcp2515_read_register(0x0E);
-    	mcp2515_write_register(0x36, 0x55);	//Data = 0x55, 1 byte
-    	mcp2515_write_register(0x35, 1);	//1 byte Data frame
-    	mcp2515_write_register(0x31, 0x4f);	//SID[10:3] = 0x4f
-    	mcp2515_write_register(0x32, 0x40);	//SID[2:0] = 0x2
-    	mcp2515_write_register(0x30, 0x0B);	//Transmit message
-    	while(P1IN & BIT3);	//Wait for RXBUF0 interrupt
-    	for(i=0;i<10000;i++);
-    	rx_bytes[0] = mcp2515_read_register(0x61);	//Read data recieved
-    	rx_bytes[1] = mcp2515_read_register(0x62);
-    	rx_bytes[2] = mcp2515_read_register(0x65);
-    	rx_bytes[3] = mcp2515_read_register(0x66);
-    	mcp2515_write_register(0x2C, 0);	//Clear interrupts
-    	if(!(P1IN & BIT3)){
-    		while(1);	//interrupt didn't clear
-    	}
-    	//i++;
-    	//for(i=0;i<10000;i++);
-    }
-
-
 }
 
 /** Main application task functions **/
@@ -148,7 +99,9 @@ void button_task(void){
 		btn_state_prev = btn_state;
 		//Send CAN message to update LEDs
 		can_tx_message_buf0(0x279,1,&btn_state);
+#ifndef PC_CAN
 		uart_send_string("CAN TX",6);
+#endif
 	}
 }
 
@@ -157,7 +110,9 @@ void led_task(void){
 		P3OUT = (P3OUT & 0xf0) | (0xf&mcp2515_read_register(0x66));
 		mcp2515_write_register(0x2C, 0);	//Clear interrupts
 		if(mcp2515_read_register(0x2D)&BIT6){
+#ifndef PC_CAN
 			uart_send_string("Overflow",8);
+#endif
 			mcp2515_write_register(0x2D,0x00);
 		}
 		while(!(P1IN&BIT3)){	//Check if interrupt cleared
@@ -166,8 +121,40 @@ void led_task(void){
 			for(i=0; i < 40000; i++);
 			mcp2515_write_register(0x2C, 0);	//Clear interrupts
 		}
+#ifndef PC_CAN
 		uart_send_string("CAN RX",6);
+#endif
 	}
+}
+
+void debug_rx_task(void){
+	uint8_t rx_byte = 0;
+	if(!(P1IN&BIT3)){
+		rx_byte = mcp2515_read_register(0x66);
+		P3OUT = (P3OUT & 0xf0) | (0xf&rx_byte);
+		mcp2515_write_register(0x2C, 0);	//Clear interrupts
+		if(mcp2515_read_register(0x2D)&BIT6){
+#ifndef PC_CAN
+			uart_send_string("Overflow",8);
+#endif
+			mcp2515_write_register(0x2D,0x00);
+		}
+		while(!(P1IN&BIT3)){	//Check if interrupt cleared
+			P3OUT ^= 0xf;
+			uint16_t i;
+			for(i=0; i < 40000; i++);
+			mcp2515_write_register(0x2C, 0);	//Clear interrupts
+		}
+#ifndef PC_CAN
+		uart_send_string("CAN RX",6);
+#endif
+		can_rx_buf[can_rx_buf_head] = rx_byte;
+		can_rx_buf_head++;
+		if(can_rx_buf_head >= CAN_RX_BUF_SIZE){
+			can_rx_buf_head = 0;
+		}
+	}
+	return;
 }
 
 /** END main application task functions **/
@@ -258,6 +245,16 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"P3 get",6)==0) && (debug_cmd_buf_ptr == 6)){
 			response_size = P3_get(response_buf);
 			uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
+			//can tx 0x00
+			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
+			can_tx_message_buf0(0x279, 1, &temp);
+#ifndef PC_CAN
+			uart_send_string("tx",2);
+#endif
+		} else if((strncmp(debug_cmd_buf,"can rx",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = debug_can_rx(response_buf);
+			uart_send_string(response_buf, response_size);
 		} else {
 			uart_send_string("Invalid Command",15);
 		}
@@ -372,6 +369,34 @@ inline uint8_t debug_mcp2515_write_reg(uint8_t *debug_cmd_buf,uint8_t *response_
 	response_buf[14] = debug_cmd_buf[20];
 	response_buf[15] = debug_cmd_buf[21];
 	return 16;
+}
+
+inline uint8_t debug_can_rx(uint8_t *response_buf){
+	uint8_t response_size = 0;
+	//Check if there is data
+	if(can_rx_buf_head != can_rx_buf_tail){
+#ifndef PC_CAN
+		hex2ascii_byte(can_rx_buf[can_rx_buf_tail],&response_buf[2],&response_buf[3]);
+#else
+		hex2ascii_byte(can_rx_buf[can_rx_buf_tail],&response_buf[0],&response_buf[1]);
+#endif
+		can_rx_buf_tail++;
+		if(can_rx_buf_tail >= CAN_RX_BUF_SIZE){
+			can_rx_buf_tail = 0;
+		}
+#ifndef PC_CAN
+		response_buf[0] = '0';
+		response_buf[1] = 'x';
+		response_size = 4;
+#else
+		response_size = 2;
+#endif
+	} else {//Buffer empty
+		response_buf[0] = 'n';
+		response_buf[1] = 'a';
+		response_size = 2;
+	}
+	return response_size;
 }
 
 /* Create numerical byte from hex ascii characters
