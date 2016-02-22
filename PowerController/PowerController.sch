@@ -11137,6 +11137,8 @@ We've spent an enormous amount of time creating and checking these footprints an
 <part name="+3V312" library="supply1" deviceset="+3V3" device=""/>
 <part name="R22" library="rcl" deviceset="R-US_" device="R0603" value="10k"/>
 <part name="GND32" library="supply1" deviceset="GND" device=""/>
+<part name="R28" library="rcl" deviceset="R-US_" device="R0603" value="10M"/>
+<part name="GND39" library="supply1" deviceset="GND" device=""/>
 </parts>
 <sheets>
 <sheet>
@@ -11997,6 +11999,8 @@ RXI connects to TXD of FTDI</text>
 <instance part="+3V312" gate="G$1" x="251.46" y="195.58"/>
 <instance part="R22" gate="G$1" x="200.66" y="175.26" rot="R270"/>
 <instance part="GND32" gate="1" x="200.66" y="167.64"/>
+<instance part="R28" gate="G$1" x="231.14" y="114.3" rot="R270"/>
+<instance part="GND39" gate="1" x="231.14" y="106.68"/>
 </instances>
 <busses>
 </busses>
@@ -12091,6 +12095,10 @@ RXI connects to TXD of FTDI</text>
 <segment>
 <pinref part="R22" gate="G$1" pin="2"/>
 <pinref part="GND32" gate="1" pin="GND"/>
+</segment>
+<segment>
+<pinref part="R28" gate="G$1" pin="2"/>
+<pinref part="GND39" gate="1" pin="GND"/>
 </segment>
 </net>
 <net name="CAN_STBY" class="0">
@@ -12392,6 +12400,8 @@ RXI connects to TXD of FTDI</text>
 <pinref part="LED8" gate="G$1" pin="C"/>
 <junction x="210.82" y="124.46"/>
 <label x="213.36" y="116.84" size="1.778" layer="95"/>
+<pinref part="R28" gate="G$1" pin="1"/>
+<junction x="231.14" y="119.38"/>
 </segment>
 </net>
 <net name="N$15" class="0">
