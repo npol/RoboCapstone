@@ -23,7 +23,7 @@
 #include "uart.h"
 #include <string.h>
 
-//#define PC_CAN
+#define PC_CAN
 
 void button_task(void);
 void led_task(void);
@@ -131,6 +131,7 @@ void led_task(void){
 void debug_rx_task(void){
 	uint8_t rx_byte = 0;
 	if(!(P1IN&BIT3)){
+		led_on(0);
 		rx_byte = mcp2515_read_register(0x66);
 		P3OUT = (P3OUT & 0xf0) | (0xf&rx_byte);
 		mcp2515_write_register(0x2C, 0);	//Clear interrupts
@@ -154,6 +155,7 @@ void debug_rx_task(void){
 		if(can_rx_buf_head >= CAN_RX_BUF_SIZE){
 			can_rx_buf_head = 0;
 		}
+		led_off(0);
 	}
 	return;
 }
@@ -205,6 +207,8 @@ void debug_task(void){
 			if(debug_cmd_buf_ptr < DEBUG_CMD_BUF_SIZE){
 				debug_cmd_buf_ptr++;
 			} else {
+				led_on(0);
+				while(1);
 				//Buffer is full
 			}
 
@@ -213,6 +217,7 @@ void debug_task(void){
 	}
 	//Process command
 	if(debug_cmd_ready){
+		led_on(1);
 		if(debug_cmd_buf_ptr == 0){
 			//No command, do nothing
 		} else if((strncmp(debug_cmd_buf,"led on",6)==0) && (debug_cmd_buf_ptr == 8)){
@@ -264,6 +269,7 @@ void debug_task(void){
 		uart_send_byte('>');	//Terminal prompt
 		debug_cmd_ready = 0;
 		debug_cmd_buf_ptr = 0;
+		led_off(1);
 	}
 }
 
@@ -475,6 +481,7 @@ __interrupt void USCI0RX_ISR(void){
 		}
 	} else {
 		//TODO: Log Error, should never go here
+		while(1);
 	}
 }
 
@@ -505,5 +512,6 @@ __interrupt void USCI0TX_ISR(void){
 		}
 	} else {
 		//TODO: Log Error, should never go here
+		while(1);
 	}
 }
