@@ -56,85 +56,94 @@ def main():
     print "[Joystick] %d buttons" % stick.get_numbuttons()
     print "[Joystick] %d hats" % stick.get_numhats()
 
-    ser = serial.Serial("/dev/tty.SLAB_USBtoUART", 115200, timeout=0)
-    # ser = serial.Serial("/dev/tty.usbserial-A1024G3E", 9600, timeout=0)
-    print "[Serial] Connected to HouseCat via %s" % ser.name
-
-    def writeBytes(L):
-        for c in L:
-            ser.write(chr(c))
-            # print (chr(c).__repr__())
-
-    brightness = 0
-    panSpeed = 0
-    tilt = 90
-
-    # while True:
-    #     for i in xrange(stick.get_numbuttons()):
-    #         pygame.event.pump()
-    #         print "button %d = %f" % (i, stick.get_button(i))
-    #         # print (i, stick.get_hat(i))
-    #     sleep(0.1)
-    print welcome
-    print "\n\n\n\n"
-    panSpeed = 93
-    count = 0
-    basePrev = 0
-
-
-    prevLight = -1
-    prevPan = -1
-    prevTilt = -1
+#    ser = serial.Serial("/dev/tty.SLAB_USBtoUART", 115200, timeout=0)
+#    # ser = serial.Serial("/dev/tty.usbserial-A1024G3E", 9600, timeout=0)
+#    print "[Serial] Connected to HouseCat via %s" % ser.name
+#
+#    def writeBytes(L):
+#        for c in L:
+#            ser.write(chr(c))
+#            # print (chr(c).__repr__())
+#
+#    brightness = 0
+#    panSpeed = 0
+#    tilt = 90
+#
+#    # while True:
+#    #     for i in xrange(stick.get_numbuttons()):
+#    #         pygame.event.pump()
+#    #         print "button %d = %f" % (i, stick.get_button(i))
+#    #         # print (i, stick.get_hat(i))
+#    #     sleep(0.1)
+#    print welcome
+#    print "\n\n\n\n"
+#    panSpeed = 93
+#    count = 0
+#    basePrev = 0
+#
+#
+#    prevLight = -1
+#    prevPan = -1
+#    prevTilt = -1
     while True:
-        pygame.event.pump()
-        brightness = toByte(-stick.get_axis(3))
-        if (stick.get_button(2)):
-            tilt = 90
-        if (stick.get_button(3)):
-            panSpeed = 93
-        hat = stick.get_hat(0)[0]
-        if hat != basePrev:
-            basePrev = hat
-            panSpeed += -1 * stick.get_hat(0)[0]
-
-
-
-        if (stick.get_button(0)):
-            tiltAxis = stick.get_axis(1)
-            tilt = cap(tilt + tiltAxis*1.5, 60, 130)
-        print "                "
-        print "Brightness:", brightness, " " * 10
-        print "PanSpeed  :", panSpeed, " " * 10
-        print "Tilt      :", "%.3f" % tilt, " " * 10
-
-        if count == 1:
-            wrote = False
-            if (brightness != prevLight):
-                writeBytes([0, 1, brightness])
-                prevLight = brightness
-                wrote = True
-            # writeBytes([0, 2, brightness])
-            # writeBytes([0, 3, brightness])
-            # writeBytes([0, 4, brightness])
-            if (panSpeed != prevPan):
-                writeBytes([0, 9, panSpeed])
-                prevPan = panSpeed
-                wrote = True
-
-            if (int(tilt) != prevTilt):
-                writeBytes([0, 8, int(tilt)])
-                prevTilt = int(tilt)
-                wrote = True
-            if wrote:
-                print "#######    \r\033[5A"
-            else :
-                print "           \r\033[5A"
-
-            count = 0
-        else:
-            print "           \r\033[5A"
-            count += 1
-        sleep(.05)
+	pygame.event.pump()
+	axis_x = toByte(stick.get_axis(0))-128
+	axis_y = -(toByte(stick.get_axis(1))-128)
+	axis_z = -(toByte(stick.get_axis(2))-128)
+	#Mixing
+	left = (axis_x+axis_y)
+	right = (-axis_x+axis_y)
+	#print str(axis_x)+" "+str(axis_y)+" "+str(axis_z)
+	print str(left)+" "+str(right)
+        sleep(0.05)
+#        brightness = toByte(-stick.get_axis(3))
+#        if (stick.get_button(2)):
+#            tilt = 90
+#        if (stick.get_button(3)):
+#            panSpeed = 93
+#        hat = stick.get_hat(0)[0]
+#        if hat != basePrev:
+#            basePrev = hat
+#            panSpeed += -1 * stick.get_hat(0)[0]
+#
+#
+#
+#        if (stick.get_button(0)):
+#            tiltAxis = stick.get_axis(1)
+#            tilt = cap(tilt + tiltAxis*1.5, 60, 130)
+#        print "                "
+#        print "Brightness:", brightness, " " * 10
+#        print "PanSpeed  :", panSpeed, " " * 10
+#        print "Tilt      :", "%.3f" % tilt, " " * 10
+#
+#        if count == 1:
+#            wrote = False
+#            if (brightness != prevLight):
+#                writeBytes([0, 1, brightness])
+#                prevLight = brightness
+#                wrote = True
+#            # writeBytes([0, 2, brightness])
+#            # writeBytes([0, 3, brightness])
+#            # writeBytes([0, 4, brightness])
+#            if (panSpeed != prevPan):
+#                writeBytes([0, 9, panSpeed])
+#                prevPan = panSpeed
+#                wrote = True
+#
+#            if (int(tilt) != prevTilt):
+#                writeBytes([0, 8, int(tilt)])
+#                prevTilt = int(tilt)
+#                wrote = True
+#            if wrote:
+#                print "#######    \r\033[5A"
+#            else :
+#                print "           \r\033[5A"
+#
+#            count = 0
+#        else:
+#            print "           \r\033[5A"
+#            count += 1
+#        sleep(.05)
 
 
 
