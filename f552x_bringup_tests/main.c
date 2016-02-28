@@ -5,10 +5,15 @@
  * main.c
  */
 int main(void) {
-
-	WDTCTL = WDTPW | WDTHOLD;	// Stop watchdog timer
+	WDTCTL = WDTPW + WDTHOLD;   // Stop watchdog timer
 	setup_clock();
-	enable_ACLK_out();
-	enable_SMCLK_out();
-	return 0;
+    // Enable Interrupts
+    __bis_SR_register(GIE);
+    enable_ACLK_out();
+    enable_SMCLK_out();
+    enable_MCLK_out();
+    while(1)
+    {
+        // ...
+    }
 }
