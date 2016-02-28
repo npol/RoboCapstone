@@ -43,6 +43,55 @@ def filter(real):
         return 0
     return real
 
+def writeBytes(L,ser):
+    for c in L:
+        ser.write(chr(c))
+        # print (chr(c).__repr__())
+def readBytesStr(num,ser):
+    return ser.read(num)
+    
+def readBytesRaw(num,ser):
+    raw_string = ser.read(num)
+    raw_bytes = len(raw_string)*[0]
+    for i in range(0,len(raw_string)):
+        raw_bytes[i] = ord(raw_string[i])
+    return raw_bytes
+
+def calcCRC(byteArray):
+    crc = 0
+    for i in range(0,len(byteArray)):
+        crc = crc ^ (byteArray[i]<<8)
+	for j in range(0,8):
+	    if(crc & 0x8000):
+	        crc = ((crc << 1) & 0xFFFF) ^ 0x1021
+	    else:
+	        crc = (crc << 1) & 0xFFFF
+    return crc
+
+def getPcktMotorPwrM1(velocity):
+    if(velocity >= 0):
+        assert(0 <= velocity and velocity <= 127)
+        pckt = [0x80,0,velocity]
+        crc = calcCRC(pckt)
+	return pckt+[(crc>>8)&0xFF,crc&0xFF]
+    else:
+        assert(-127 <= velocity and velocity <= 0)
+        pckt = [0x80,1,abs(velocity)]
+        crc = calcCRC(pckt)
+	return pckt+[(crc>>8)&0xFF,crc&0xFF]
+
+def getPcktMotorPwrM2(velocity):
+    if(velocity >= 0):
+        assert(0 <= velocity and velocity <= 127)
+        pckt = [0x80,4,velocity]
+        crc = calcCRC(pckt)
+	return pckt+[(crc>>8)&0xFF,crc&0xFF]
+    else:
+        assert(-127 <= velocity and velocity <= 0)
+        pckt = [0x80,5,abs(velocity)]
+        crc = calcCRC(pckt)
+	return pckt+[(crc>>8)&0xFF,crc&0xFF]
+
 def main():
     pygame.init()
     print "%d joystick(s) found" % joystick.get_count()
@@ -56,46 +105,64 @@ def main():
     print "[Joystick] %d buttons" % stick.get_numbuttons()
     print "[Joystick] %d hats" % stick.get_numhats()
 
-#    ser = serial.Serial("/dev/tty.SLAB_USBtoUART", 115200, timeout=0)
-#    # ser = serial.Serial("/dev/tty.usbserial-A1024G3E", 9600, timeout=0)
-#    print "[Serial] Connected to HouseCat via %s" % ser.name
-#
-#    def writeBytes(L):
-#        for c in L:
-#            ser.write(chr(c))
-#            # print (chr(c).__repr__())
-#
-#    brightness = 0
-#    panSpeed = 0
-#    tilt = 90
-#
-#    # while True:
-#    #     for i in xrange(stick.get_numbuttons()):
-#    #         pygame.event.pump()
-#    #         print "button %d = %f" % (i, stick.get_button(i))
-#    #         # print (i, stick.get_hat(i))
-#    #     sleep(0.1)
-#    print welcome
-#    print "\n\n\n\n"
-#    panSpeed = 93
-#    count = 0
-#    basePrev = 0
-#
-#
-#    prevLight = -1
-#    prevPan = -1
-#    prevTilt = -1
+    ser = serial.Serial("/dev/ttyUSB0",115200,timeout=0)
+    ser.flushInput()
+    ser.flushOutput()
+    #Check Roboclaw firmware version
+    writeBytes([0x80,21],ser)
+    sleep(0.1)
+    temp = readBytesStr(30,ser)
+    if(temp[0:26] == 'USB Roboclaw 2x60a v4.1.13'):
+        print "[Serial] Connected to Roboclaw via %s" % ser.name
+	print temp[0:26]
+    else:
+        print "Unable to connect to Roboclaw on %s" % ser.name
+    #Check battery
+    writeBytes([0x80,24],ser)
+    sleep(0.1)
+    temp = readBytesRaw(4,ser)
+    batt_raw = (temp[0]<<8)|temp[1]
+    print "Battery Voltage: %f" % (float(batt_raw)/10)
+    x = calcCRC([0x80,24]+temp[0:2])
+    assert(x == (temp[2]<<8)|temp[3]) #Make sure CRC algorithm is correct
     while True:
+	#Get joystick state
 	pygame.event.pump()
 	axis_x = toByte(stick.get_axis(0))-128
 	axis_y = -(toByte(stick.get_axis(1))-128)
 	axis_z = -(toByte(stick.get_axis(2))-128)
 	#Mixing
-	left = (axis_x+axis_y)
-	right = (-axis_x+axis_y)
+	left = cap(axis_x+axis_y,-127,127)
+	right = cap(-axis_x+axis_y,-127,127)
+	scale = float(128+cap(axis_z,-128,127))/255
 	#print str(axis_x)+" "+str(axis_y)+" "+str(axis_z)
-	print str(left)+" "+str(right)
-        sleep(0.05)
+	#print str(left)+" "+str(right)
+	
+	#Send values to motors
+	pckt = getPcktMotorPwrM1(int(left*scale))
+	writeBytes(pckt,ser)
+	sleep(0.05)
+	temp = readBytesRaw(1,ser)
+	if(temp != 0xFF):
+	    print "Packet Rx error"
+	pckt = getPcktMotorPwrM2(int(right*scale))
+	writeBytes(pckt,ser)
+	sleep(0.05)
+	temp = readBytesRaw(1,ser)
+	if(temp != 0xFF):
+	    print "Packet Rx error"
+	#writeBytes([0x80,0,abs(left),
+	#Get encoder1 state
+	writeBytes([0x80,16],ser)
+	sleep(0.05)
+	temp = readBytesRaw(7,ser)
+	enc1 = (temp[0]<<24)|(temp[1]<<16)|(temp[2]<<8)|(temp[3])
+	#Get encoder2 state
+        writeBytes([0x80,17],ser)
+	sleep(0.05)
+	temp = readBytesRaw(7,ser)
+	enc2 = (temp[0]<<24)|(temp[1]<<16)|(temp[2]<<8)|(temp[3])
+	print "Encoder 1: %d %d" % ((enc1),(enc2))
 #        brightness = toByte(-stick.get_axis(3))
 #        if (stick.get_button(2)):
 #            tilt = 90
