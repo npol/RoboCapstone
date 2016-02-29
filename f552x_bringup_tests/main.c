@@ -1,9 +1,20 @@
 #include <msp430.h> 
+#include "utils.h"
+#include <string.h>
 #include "clock_f5.h"
 #include "dbg_uart_uscia0.h"
 
+/** Debug task macros and globals **/
+void debug_task(void);
+
+#define DEBUG_CMD_BUF_SIZE 32
+uint8_t debug_cmd_buf[DEBUG_CMD_BUF_SIZE];
+uint8_t debug_cmd_buf_ptr = 0;
+/** END Debug task macros and globals **/
+
 //#define BLINK
 //#define CLK_TEST
+//#define DBG_UART_TX_TEST
 #define DBG_UART_TEST
 
 #ifdef BLINK
@@ -37,7 +48,7 @@ int main(void) {
 }
 #endif
 
-#ifdef DBG_UART_TEST
+#ifdef DBG_UART_TX_TEST
 int main(void) {
 	WDTCTL = WDTPW + WDTHOLD;   // Stop watchdog timer
 	setup_clock();
@@ -50,6 +61,121 @@ int main(void) {
     }
 }
 #endif
+
+#ifdef DBG_UART_TEST
+int main(void) {
+	WDTCTL = WDTPW + WDTHOLD;   // Stop watchdog timer
+	P1DIR |= BIT0;	//Debug LED
+	setup_clock();
+	setup_dbg_uart();
+    // Enable Interrupts
+    __bis_SR_register(GIE);
+    while(1)
+    {
+        debug_task();
+    }
+}
+#endif
+
+/** Debug Task functions **/
+
+/* Process debug command functions */
+void debug_task(void){
+	uint8_t debug_cmd_ready = 0;
+	uint8_t response_buf[DEBUG_CMD_BUF_SIZE];
+	uint8_t response_size = 0;
+	//Check if serial data is ready to be formed into a command
+	if(is_dbg_uart_rx_data_ready()){
+		uint8_t rx_byte = dbg_uart_get_byte();
+
+		//Enter (CR) indicates command is complete
+		if(rx_byte == 13){			//Enter pressed (CR)
+			dbg_uart_send_byte(13);		//CR
+			dbg_uart_send_byte(10);		//Line feed
+			debug_cmd_ready = 1;	//Reset command buffer
+		} else {//Fill command buffer
+			dbg_uart_send_byte(rx_byte);	//Echo back character
+			debug_cmd_buf[debug_cmd_buf_ptr] = rx_byte;
+			if(debug_cmd_buf_ptr < DEBUG_CMD_BUF_SIZE){
+				debug_cmd_buf_ptr++;
+			} else {
+				while(1);
+				//TODO Buffer is full
+			}
+
+		}
+
+	}
+	//Process command
+	if(debug_cmd_ready){
+		if(debug_cmd_buf_ptr == 0){
+			//No command, do nothing
+		} else if((strncmp(debug_cmd_buf,"led1 on",6)==0) && (debug_cmd_buf_ptr == 7)){
+			//>led1 on
+			led_P1_0_on();
+		} else if((strncmp(debug_cmd_buf,"led1 off",7)==0) && (debug_cmd_buf_ptr == 8)){
+			//>led1 off
+			led_P1_0_off();
+/*		} else if((strncmp(debug_cmd_buf,"button get",10)==0) && (debug_cmd_buf_ptr == 10)){
+			//>button get
+			response_size = button_get(response_buf);
+			uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"can regread",11)==0) && (debug_cmd_buf_ptr == 16)){
+			//>can regread <register in hex>
+			//>can regread 0x00
+			response_size = debug_mcp2515_read_reg(debug_cmd_buf,response_buf);
+			uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"can regwrite",12)==0) && (debug_cmd_buf_ptr == 22)){
+			//>can regwrite <register in hex> <data in hex>
+			//>can regwrite 0x00 0x00
+			response_size = debug_mcp2515_write_reg(debug_cmd_buf,response_buf);
+			uart_send_string(response_buf,response_size);*/
+		} else if((strncmp(debug_cmd_buf,"P1 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P1_get(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P2 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P2_get(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P3 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P3_get(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P4 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P4_get(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P5 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P5_get(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P6 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P6_get(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P7 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P7_get(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"P8 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = P8_get(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+/*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
+			//can tx 0x00
+			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
+			can_tx_message_buf0(0x279, 1, &temp);
+#ifndef PC_CAN
+			uart_send_string("tx",2);
+#endif
+		} else if((strncmp(debug_cmd_buf,"can rx",6)==0) && (debug_cmd_buf_ptr == 6)){
+			response_size = debug_can_rx(response_buf);
+			uart_send_string(response_buf, response_size);*/
+		} else {
+			dbg_uart_send_string("Invalid Command",15);
+		}
+		dbg_uart_send_byte(13);		//CR
+		dbg_uart_send_byte(10);		//Line feed
+		dbg_uart_send_byte('>');	//Terminal prompt
+		debug_cmd_ready = 0;
+		debug_cmd_buf_ptr = 0;
+	}
+}
+
+/** END Debug Task functions **/
 
 /** Interrupts **/
 /* Debug UART USCIA0 InterruptHandler
