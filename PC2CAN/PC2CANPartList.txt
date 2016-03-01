@@ -1,0 +1,91 @@
+Partlist
+
+Exported from PC2CAN.sch at 2/22/2016 9:47:43 AM
+
+EAGLE Version 6.6.0 Copyright (c) 1988-2014 CadSoft
+
+Assembly variant: 
+
+Part     Value                  Device                 Package                     Library                Sheet
+
+C1       10uF                   C-USC0805              C0805                       rcl                    1
+C2       0.1uF                  C-USC0603              C0603                       rcl                    1
+C3       0.1uF                  C-USC0603              C0603                       rcl                    1
+C4       470nF                  C-USC0603              C0603                       rcl                    1
+C5       0.1uF                  C-USC0603              C0603                       rcl                    1
+C6       220nF                  C-USC0603              C0603                       rcl                    1
+C7       220nF                  C-USC0603              C0603                       rcl                    1
+C8       1nF                    C-USC0603              C0603                       rcl                    1
+C9       1nF                    C-USC0603              C0603                       rcl                    1
+C10      1nF                    C-USC0603              C0603                       rcl                    1
+C11      10nF                   C-USC0603              C0603                       rcl                    2
+C12      0.1uF                  C-USC0603              C0603                       rcl                    2
+H1       MOUNT-PAD-ROUND3.2     MOUNT-PAD-ROUND3.2     3,2-PAD                     holes                  2
+H2       MOUNT-PAD-ROUND3.2     MOUNT-PAD-ROUND3.2     3,2-PAD                     holes                  2
+H3       MOUNT-PAD-ROUND3.2     MOUNT-PAD-ROUND3.2     3,2-PAD                     holes                  2
+H4       MOUNT-PAD-ROUND3.2     MOUNT-PAD-ROUND3.2     3,2-PAD                     holes                  2
+J11      M10X2                  M10X2                  2X10                        SparkFun-Connectors    2
+JP1                             M05PTH                 1X05                        SparkFun-Connectors    1
+JP2                             M03X22X3_SILK_SM       2X3                         SparkFun-Connectors    1
+JP3      M02LOCK                M02LOCK                1X02_LOCK                   SparkFun-Connectors    1
+JP4      ONSHORE_OST302-S141    ONSHORE_OST302-S141    ONSHORE_OST302-S141         npol-connectors        1
+JP5      FTDI_DEVICE            FTDI_DEVICE            FTDI_DEVICE_SIDE            SparkFun-Connectors    1
+JP6                             M03LOCK                1X03_LOCK                   SparkFun-Connectors    1
+JP7      USB-B                  USBPTH                 USB-B-PTH                   SparkFun-Connectors    2
+JP8      M02POLAR_LOCK          M02POLAR_LOCK          MOLEX-1X2_LOCK              SparkFun-Connectors    2
+JP9      M02LOCK                M02LOCK                1X02_LOCK                   SparkFun-Connectors    2
+JP10                            M03LOCK                1X03_LOCK                   SparkFun-Connectors    2
+LED1     Status: Red            LED0603                LED-0603                    SparkFun-LED           1
+LED2     Status: Red            LED0603                LED-0603                    SparkFun-LED           1
+LED3     Status: Red            LED0603                LED-0603                    SparkFun-LED           1
+LED4     3V3 OK                 LED0603                LED-0603                    SparkFun-LED           1
+LED5     Status: Green          LED0603                LED-0603                    SparkFun-LED           1
+LED6     Status: Yellow         LED0603                LED-0603                    SparkFun-LED           1
+LED7     Status: Red            LED0603                LED-0603                    SparkFun-LED           1
+LED8                            LED0603                LED-0603                    SparkFun-LED           2
+LED9                            LED0603                LED-0603                    SparkFun-LED           2
+LED10                           LED0603                LED-0603                    SparkFun-LED           2
+Q1       INFINEON_2N7002_DW     INFINEON_2N7002_DW     INFINEON_SOT363             npol-discrete          2
+Q2       BS250F                 MOSFET-PCHANNELSMD     SOT23-3                     SparkFun-DiscreteSemi  2
+Q3       BS250F                 MOSFET-PCHANNELSMD     SOT23-3                     SparkFun-DiscreteSemi  2
+Q4       INFINEON_2N7002_DW     INFINEON_2N7002_DW     INFINEON_SOT363             npol-discrete          2
+R1       330                    R-US_R0603             R0603                       rcl                    1
+R2       330                    R-US_R0603             R0603                       rcl                    1
+R3       330                    R-US_R0603             R0603                       rcl                    1
+R4       0                      R-US_R0603             R0603                       rcl                    1
+R5       1M                     R-US_R0603             R0603                       rcl                    1
+R6       47k                    R-US_R0603             R0603                       rcl                    1
+R7       10k                    R-US_R0603             R0603                       rcl                    1
+R8       330                    R-US_R0603             R0603                       rcl                    1
+R9       10k                    R-US_R0603             R0603                       rcl                    1
+R10      330                    R-US_R0603             R0603                       rcl                    1
+R11      330                    R-US_R0603             R0603                       rcl                    1
+R12      330                    R-US_R0603             R0603                       rcl                    1
+R13      10k                    R-US_R0603             R0603                       rcl                    2
+R14      10k                    R-US_R0603             R0603                       rcl                    2
+R15      470                    R-US_R0603             R0603                       rcl                    2
+R16      10k                    R-US_R0603             R0603                       rcl                    2
+R17      470                    R-US_R0603             R0603                       rcl                    2
+R18      10k                    R-US_R0603             R0603                       rcl                    2
+R19      100k                   R-US_R0603             R0603                       rcl                    2
+R20      100k                   R-US_R0603             R0603                       rcl                    2
+R21      10k                    R-US_R0603             R0603                       rcl                    2
+R22      100k                   R-US_R0603             R0603                       rcl                    2
+R23      10k                    R-US_R0603             R0603                       rcl                    2
+R24      620                    R-US_R0603             R0603                       rcl                    2
+R25      10k                    R-US_R0603             R0603                       rcl                    2
+R26      10k                    R-US_R0603             R0603                       rcl                    2
+R27      10k                    R-US_R0603             R0603                       rcl                    2
+R28      10M                    R-US_R0603             R0603                       rcl                    2
+S1       CK_PTS645-V            CK_PTS645-V            CK_PTS645-V                 npol-electromechanical 1
+SJ1                             SOLDERJUMPER_2WAY0603  SOLDERJUMPER_2WAY_OPEN_0603 microbuilder           1
+SJ2                             SOLDERJUMPER_2WAY0603  SOLDERJUMPER_2WAY_OPEN_0603 microbuilder           1
+SJ3                             SOLDERJUMPER_2WAY0603  SOLDERJUMPER_2WAY_OPEN_0603 microbuilder           2
+SJ4                             SOLDERJUMPER_2WAY0603  SOLDERJUMPER_2WAY_OPEN_0603 microbuilder           2
+TP1                             TESTPOINT0.1"          1X01_ROUND                  microbuilder           1
+TP2                             TESTPOINT0.1"          1X01_ROUND                  microbuilder           1
+TP3                             TESTPOINT0.1"          1X01_ROUND                  microbuilder           1
+U1       MSP430F5521/5/7/9_PN80 MSP430F5521/5/7/9_PN80 PN80                        npol-msp430            1
+U2       FT232RLSSOP            FT232RLSSOP            SSOP28DB                    SparkFun-DigitalIC     2
+U3       LTV-817                LTV-817                LITEON_DIL04_.3             npol-digital           2
+Y1                              CRYSTALHC49UV          HC49U-V                     SparkFun-FreqCtrl      1

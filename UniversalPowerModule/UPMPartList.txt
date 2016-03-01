@@ -1,0 +1,57 @@
+Partlist
+
+Exported from UPM_pcb_v1-0.sch at 2/22/2016 10:20:48 AM
+
+EAGLE Version 6.6.0 Copyright (c) 1988-2014 CadSoft
+
+Assembly variant: 
+
+Part     Value                 Device                Package                  Library               Sheet
+
+C1       100uF                 CPOL-USE2.5-5         E2,5-5                   rcl                   1
+C2       100uF                 CPOL-USE2.5-5         E2,5-5                   rcl                   1
+C3       1000uF                CPOL-USE5-13          E5-13                    rcl                   1
+C4       0.1uF                 C-USC0603             C0603                    rcl                   2
+C5       0.1uF                 C-USC0603             C0603                    rcl                   2
+C6       0.1uF                 C-USC0603             C0603                    rcl                   2
+C7       22nF                  C-USC0603             C0603                    rcl                   2
+C8       22nF                  C-USC0603             C0603                    rcl                   2
+C9       10nF                  C-USC0603             C0603                    rcl                   2
+D1       VISHAY_SMA6F          VISHAY_SMA6F          VSHY_DO-221AC            npol-discrete         1
+D3                             DIODE1N4148           DIODE-1N4148             SparkFun-DiscreteSemi 2
+H1       MOUNT-PAD-ROUND3.2    MOUNT-PAD-ROUND3.2    3,2-PAD                  holes                 1
+H2       MOUNT-PAD-ROUND3.2    MOUNT-PAD-ROUND3.2    3,2-PAD                  holes                 1
+JP1                            M04LOCK               1X04_LOCK                SparkFun-Connectors   2
+JP2      ONSHORE_OSTYK21102030 ONSHORE_OSTYK21102030 ONSHORE_OSTYK21102030    npol-connectors       1
+JP3                            JUMPER2               JUMPER2                  microbuilder          1
+JP4                            JUMPER2               JUMPER2                  microbuilder          1
+JP5                            M04LOCK               1X04_LOCK                SparkFun-Connectors   1
+JP6      M02POLAR_LOCK         M02POLAR_LOCK         MOLEX-1X2_LOCK           SparkFun-Connectors   2
+JP7      M10X2                 M10X2                 2X10                     SparkFun-Connectors   3
+LED1                           LED0603               LED-0603                 SparkFun-LED          1
+LED2                           LED0603               LED-0603                 SparkFun-LED          1
+LED3                           LED0603               LED-0603                 SparkFun-LED          1
+LED4     green                 LED0603               LED-0603                 SparkFun-LED          2
+LED5     blue                  LED0603               LED-0603                 SparkFun-LED          2
+Q1       DMP4047SK3            DMP4047SK3            DIODES_TO252             npol-discrete         1
+Q2       INFINEON_2N7002_DW    INFINEON_2N7002_DW    INFINEON_SOT363          npol-discrete         2
+R1       47                    R-US_R0603            R0603                    rcl                   1
+R2       1k                    R-US_R0603            R0603                    rcl                   1
+R3       470                   R-US_R0603            R0603                    rcl                   1
+R4       330                   R-US_R0603            R0603                    rcl                   1
+R5       120                   R-US_R0603            R0603                    rcl                   2
+R6       10k                   R-US_R0603            R0603                    rcl                   2
+R7       10k                   R-US_R0603            R0603                    rcl                   2
+R8       330                   R-US_R0603            R0603                    rcl                   2
+R9       330                   R-US_R0603            R0603                    rcl                   2
+TP2                            TESTPOINT0.1"         1X01_ROUND               microbuilder          1
+TP4                            TESTPOINT0.1"         1X01_ROUND               microbuilder          1
+TP5                            TESTPOINT0.1"         1X01_ROUND               microbuilder          1
+TP6                            TESTPOINT0.1"         1X01_ROUND               microbuilder          2
+TP7                            TESTPOINT0.1"         1X01_ROUND               microbuilder          2
+TP8                            TESTPOINT0.1"         1X01_ROUND               microbuilder          2
+U1       TLV1117_4TERM-33_DCY  TLV1117_4TERM-33_DCY  TI_SOT-223_DCY_R-PDSO-G4 npol-power            1
+U2       TLV1117_4TERM-50_DCY  TLV1117_4TERM-50_DCY  TI_SOT-223_DCY_R-PDSO-G4 npol-power            1
+U3       MCP2515-SO            MCP2515-SO            MCP_SO_SOIC-18           npol-digital          2
+U4       MCP2562-SN            MCP2562-SN            MCP_SN_SOIC-8            npol-digital          2
+Y1       8MHz                  CRYSTALHC49UV         HC49U-V                  SparkFun-FreqCtrl     2
