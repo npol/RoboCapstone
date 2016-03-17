@@ -12,7 +12,8 @@
  */
 #include "dbg_uart_uscia0.h"
 
-#define CLK_4MHZ
+//#define CLK_4MHZ
+#define CLK_25MHZ
 
 volatile struct DBG_UART_data_struct DBG_UART_data = {
 	.tx_bytes = {0},
@@ -33,7 +34,8 @@ void setup_dbg_uart(void){
 	UCA0BR1 = 0;					//UCBRx = 2 for 115200baud
 	UCA0BR0 = 34;
 	UCA0MCTL = UCBRS_6;
-#elif CLK_25MHZ
+#endif
+#ifdef CLK_25MHZ
 	UCA0BR1 = 0;
 	UCA0BR0 = 0xd9;
 	UCA0MCTL = 0;

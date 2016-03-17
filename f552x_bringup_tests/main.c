@@ -24,9 +24,9 @@ uint8_t debug_cmd_buf_ptr = 0;
 /** END Debug task macros and globals **/
 
 //#define BLINK
-#define CLK_TEST
+//#define CLK_TEST
 //#define DBG_UART_TX_TEST
-//#define DBG_UART_TEST
+#define DBG_UART_TEST
 
 #ifdef BLINK
 int main(void) {
@@ -76,7 +76,12 @@ int main(void) {
 #ifdef DBG_UART_TEST
 int main(void) {
 	WDTCTL = WDTPW + WDTHOLD;   // Stop watchdog timer
-	P1DIR |= BIT0;	//Debug LED
+	P1DIR |= BIT0;	//Debug LED1
+	P2DIR |= BIT2;	//Debug LED2
+	P7DIR |= BIT7;	//Debug LED3
+	P4DIR |= BIT7;	//Debug ERR LED
+	P5DIR |= BIT6;	//Debug WARN LED
+	P5DIR |= BIT7;	//Debug OK LED
 	setup_clock();
 	setup_dbg_uart();
     // Enable Interrupts
@@ -127,6 +132,36 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"led1 off",7)==0) && (debug_cmd_buf_ptr == 8)){
 			//>led1 off
 			led_P1_0_off();
+		} else if((strncmp(debug_cmd_buf,"led2 on",6)==0) && (debug_cmd_buf_ptr == 7)){
+			//>led2 on
+			led_P2_2_on();
+		} else if((strncmp(debug_cmd_buf,"led2 off",7)==0) && (debug_cmd_buf_ptr == 8)){
+			//>led2 off
+			led_P2_2_off();
+		} else if((strncmp(debug_cmd_buf,"led3 on",6)==0) && (debug_cmd_buf_ptr == 7)){
+			//>led3 on
+			led_P7_7_on();
+		} else if((strncmp(debug_cmd_buf,"led3 off",7)==0) && (debug_cmd_buf_ptr == 8)){
+			//>led3 off
+			led_P7_7_off();
+		} else if((strncmp(debug_cmd_buf,"led4 on",6)==0) && (debug_cmd_buf_ptr == 7)){
+			//>led4 on
+			led_P5_7_on();
+		} else if((strncmp(debug_cmd_buf,"led4 off",7)==0) && (debug_cmd_buf_ptr == 8)){
+			//>led4 off
+			led_P5_7_off();
+		} else if((strncmp(debug_cmd_buf,"led5 on",6)==0) && (debug_cmd_buf_ptr == 7)){
+			//>led5 on
+			led_P5_6_on();
+		} else if((strncmp(debug_cmd_buf,"led5 off",7)==0) && (debug_cmd_buf_ptr == 8)){
+			//>led5 off
+			led_P5_6_off();
+		} else if((strncmp(debug_cmd_buf,"led6 on",6)==0) && (debug_cmd_buf_ptr == 7)){
+			//>led6 on
+			led_P4_7_on();
+		} else if((strncmp(debug_cmd_buf,"led6 off",7)==0) && (debug_cmd_buf_ptr == 8)){
+			//>led6 off
+			led_P4_7_off();
 /*		} else if((strncmp(debug_cmd_buf,"button get",10)==0) && (debug_cmd_buf_ptr == 10)){
 			//>button get
 			response_size = button_get(response_buf);

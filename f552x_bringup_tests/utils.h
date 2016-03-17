@@ -32,7 +32,16 @@ uint8_t P7_get(uint8_t *buf);
 uint8_t P8_get(uint8_t *buf);
 void led_P1_0_on(void);
 void led_P1_0_off(void);
-
+void led_P2_2_on(void);
+void led_P2_2_off(void);
+void led_P7_7_on(void);
+void led_P7_7_off(void);
+void led_P5_7_on(void);
+void led_P5_7_off(void);
+void led_P5_6_on(void);
+void led_P5_6_off(void);
+void led_P4_7_on(void);
+void led_P4_7_off(void);
 
 #endif /* UTILS_H_ */
 
