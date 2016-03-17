@@ -8,8 +8,8 @@
 #include "clock_f5.h"
 
 //#define XT1_EN
-#define XT2_EN_4MHZ
-//#define XT2_EN_25MHZ
+//#define XT2_EN_4MHZ
+#define XT2_EN_25MHZ
 
 static void SetVCoreUp(unsigned int level);
 
@@ -24,9 +24,9 @@ void setup_clock(void){
     // 0 = 8MHz, 1 = 12MHz, 2 = 20MHz, 3 = 25MHz.
     // NOTE: Change core voltage one level at a time.
 #ifdef XT2_EN_25MHZ
-    SetVcoreUp (0x01);
-    SetVcoreUp (0x02);
-    SetVcoreUp (0x03);
+    SetVCoreUp (0x01);
+    SetVCoreUp (0x02);
+    SetVCoreUp (0x03);
 #endif
 #ifdef XT1_EN
     // *** Setup XT1 *********************************
@@ -114,8 +114,8 @@ static void SetVCoreUp(unsigned int level){
 	// Open PMM registers for write access
 	PMMCTL0_H = 0xA5;
 	// Make sure no flags are set for iterative sequences
-	while ((PMMIFG & SVSMHDLYIFG) == 0);
-	while ((PMMIFG & SVSMLDLYIFG) == 0);
+	//while (!((PMMIFG & SVSMHDLYIFG) == 0));
+	//while (!((PMMIFG & SVSMLDLYIFG) == 0));
 	// Set SVS/SVM high side new level
 	SVSMHCTL = SVSHE + SVSHRVL0 * level + SVMHE + SVSMHRRL0 * level;
 	// Set SVM low side to new level
@@ -128,7 +128,7 @@ static void SetVCoreUp(unsigned int level){
 	PMMCTL0_L = PMMCOREV0 * level;
 	// Wait till new level reached
 	if ((PMMIFG & SVMLIFG))
-	while ((PMMIFG & SVMLVLRIFG) == 0);
+		while ((PMMIFG & SVMLVLRIFG) == 0);
 	// Set SVS/SVM low side to new level
 	SVSMLCTL = SVSLE + SVSLRVL0 * level + SVMLE + SVSMLRRL0 * level;
 	// Lock PMM registers for write access

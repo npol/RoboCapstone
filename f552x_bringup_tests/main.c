@@ -1,3 +1,14 @@
+/*
+ * main.c
+ * Created 2/29/16 by Nishant Pol
+ * Robotics Capstone 16-474/Mechatronics 18-578
+ * MSP430F5521/9
+ * Bringup test code
+ *
+ * Code Composer v6
+ * Version History
+ * 2/29/16: Initial release
+ */
 #include <msp430.h> 
 #include "utils.h"
 #include <string.h>
@@ -13,9 +24,9 @@ uint8_t debug_cmd_buf_ptr = 0;
 /** END Debug task macros and globals **/
 
 //#define BLINK
-//#define CLK_TEST
+#define CLK_TEST
 //#define DBG_UART_TX_TEST
-#define DBG_UART_TEST
+//#define DBG_UART_TEST
 
 #ifdef BLINK
 int main(void) {
@@ -217,6 +228,7 @@ __interrupt void USCIA0_ISR(void){
  * NMIIFG:
  * OFIFG: Oscillator Fault
  */
+#pragma vector=UNMI_VECTOR
 __interrupt void unmi_isr(void){
 	switch(__even_in_range(SYSUNIV, 0x08)){
 		case 0x00: break;
