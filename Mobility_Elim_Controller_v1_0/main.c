@@ -14,6 +14,7 @@
 #include <string.h>
 #include "clock_f5.h"
 #include "dbg_uart_uscia0.h"
+#include "roboclaw.h"
 
 /** Debug task macros and globals **/
 void debug_task(void);
