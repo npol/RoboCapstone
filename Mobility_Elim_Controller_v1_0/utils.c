@@ -153,5 +153,63 @@ void led_P1_0_off(void){
 	return;
 }
 
+/* Turn on debug LED on P2.2 */
+void led_P2_2_on(void){
+	P2OUT |= BIT2;
+	return;
+}
 
+/* Turn off debug LED on P2.2 */
+void led_P2_2_off(void){
+	P2OUT &= ~BIT2;
+	return;
+}
+
+/* Turn on debug LED on P7.7 */
+void led_P7_7_on(void){
+	P7OUT |= BIT7;
+	return;
+}
+
+/* Turn off debug LED on P7.7 */
+void led_P7_7_off(void){
+	P7OUT &= ~BIT7;
+	return;
+}
+
+/* Turn on ok LED on P5.7 */
+void led_P5_7_on(void){
+	P5OUT |= BIT7;
+	return;
+}
+
+/* Turn off ok LED on P5.7 */
+void led_P5_7_off(void){
+	P5OUT &= ~BIT7;
+	return;
+}
+
+/* Turn on warn LED on P5.6 */
+void led_P5_6_on(void){
+	P5OUT |= BIT6;
+	return;
+}
+
+/* Turn off warn LED on P5.6 */
+void led_P5_6_off(void){
+	P5OUT &= ~BIT6;
+	return;
+}
+
+/* Turn on error LED on P4.7 */
+void led_P4_7_on(void){
+	P4OUT |= BIT7;
+	return;
+}
+
+/* Turn off error LED on P4.7 */
+void led_P4_7_off(void){
+	P4OUT &= ~BIT7;
+	return;
+}
 
