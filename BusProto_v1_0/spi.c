@@ -13,6 +13,8 @@
  * - Repurposed code for RoboCapstone Bus Prototype
  * 1/24/16: Nishant Pol
  * - Updated CS to reflect new pinout
+ * 3/17/16: Nishant Pol
+ * - Added for final RoboCapstone code
  *
  * SPI Pinout to CAN Transciever (MCP2515)
  * Uses USCIB0 on MSP430G2553

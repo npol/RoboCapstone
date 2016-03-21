@@ -16,6 +16,8 @@
 #include "dbg_uart_uscia0.h"
 #include "roboclaw.h"
 #include "rc_uart_uscia1.h"
+#include "drill.h"
+#include "stepper.h"
 
 /** Debug task macros and globals **/
 void debug_task(void);
@@ -36,14 +38,23 @@ int main(void) {
 	P5DIR |= BIT7;	//Debug OK LED
 	setup_clock();
 	setup_dbg_uart();
+	setup_rc_uart();
+	drill_setup();
+	stepper_setup();
     // Enable Interrupts
     __bis_SR_register(GIE);
     while(1)
     {
         debug_task();
+        /*
+        if(is_rc_uart_rx_data_ready()){
+        	uint8_t rx_byte = rc_uart_get_byte();
+        	dbg_uart_send_byte(rx_byte);
+        	rc_uart_send_byte(rx_byte);
+        }
+        */
     }
 }
-
 
 /** Debug Task functions **/
 
@@ -129,29 +140,64 @@ void debug_task(void){
 			response_size = debug_mcp2515_write_reg(debug_cmd_buf,response_buf);
 			uart_send_string(response_buf,response_size);*/
 		} else if((strncmp(debug_cmd_buf,"P1 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			//>P1 get
 			response_size = P1_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P2 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			//>P2 get
 			response_size = P2_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P3 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			//>P3 get
 			response_size = P3_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P4 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			//>P4 get
 			response_size = P4_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P5 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			//>P5 get
 			response_size = P5_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P6 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			//>P6 get
 			response_size = P6_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P7 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			//>P7 get
 			response_size = P7_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P8 get",6)==0) && (debug_cmd_buf_ptr == 6)){
+			//>P8 get
 			response_size = P8_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"drill en",8)==0) && (debug_cmd_buf_ptr == 8)){
+			//>drill en
+			drill_enable();
+		} else if((strncmp(debug_cmd_buf,"drill dis",9)==0) && (debug_cmd_buf_ptr == 9)){
+			//>drill dis
+			drill_disable();
+		} else if((strncmp(debug_cmd_buf,"drill dir ",9)==0) && (debug_cmd_buf_ptr == 11)){
+			//>drill dir <direction>
+			//>drill dir 0
+			if(debug_cmd_buf[10] == '0')
+				drill_brake();
+			if(debug_cmd_buf[10] == '1')
+				drill_cw();
+			if(debug_cmd_buf[10] == '2')
+				drill_ccw();
+		} else if((strncmp(debug_cmd_buf,"step",4)==0) && (debug_cmd_buf_ptr == 4)){
+			//>step
+			stepper_step_single();
+		} else if((strncmp(debug_cmd_buf,"step cw",7)==0) && (debug_cmd_buf_ptr == 7)){
+			//>step cw
+			stepper_enable(0);
+		} else if((strncmp(debug_cmd_buf,"step ccw",8)==0) && (debug_cmd_buf_ptr == 8)){
+			//>step ccw
+			stepper_enable(1);
+		} else if((strncmp(debug_cmd_buf,"step dis",8)==0) && (debug_cmd_buf_ptr == 8)){
+			//>step dis
+			stepper_disable();
 /*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
 			//can tx 0x00
 			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
@@ -176,9 +222,9 @@ void debug_task(void){
 /** END Debug Task functions **/
 
 /** Interrupts **/
-/* Debug UART USCIA0 InterruptHandler
- * UART Rx: Recieves incoming bytes from debug channel, puts into UART datastructure
- * UART Tx: Sends bytes from UART datastructure to debug channel
+/* Debug UART USCIA0 Interrupt Handler
+ * UART Rx: Recieves incoming bytes from debug channel, puts into Debug UART datastructure
+ * UART Tx: Sends bytes from Debug UART datastructure to debug channel
  */
 #pragma vector=USCI_A0_VECTOR
 __interrupt void USCIA0_ISR(void){
@@ -203,6 +249,40 @@ __interrupt void USCIA0_ISR(void){
 		//Disable Tx interrupt if last byte in buffer has been transmitted
 		if(DBG_UART_data.tx_tail == DBG_UART_data.tx_head){
 			disable_dbg_uart_txint();
+		}
+	} else {
+		//TODO: Log Error, should never go here
+		while(1);
+	}
+}
+
+/* RoboClaw UART USCIA1 Interrupt Handler
+ * UART Rx: Recieves incoming bytes from Roboclaw, puts into RC UART datastructure
+ * UART Tx: Sends bytes from RC UART datastructure to roboclaw
+ */
+#pragma vector=USCI_A1_VECTOR
+__interrupt void USCIA1_ISR(void){
+	if((UCA1IE & UCRXIE) && (UCA1IFG & UCRXIFG)){	//UART Rxbuf full interrupt
+		//Get byte and clear interrupt
+		RC_UART_data.rx_bytes[RC_UART_data.rx_head] = UCA1RXBUF;
+		RC_UART_data.rx_head++;
+		//Wraparound condition
+		if(RC_UART_data.rx_head >= RC_UART_RX_BUF_SIZE){
+			RC_UART_data.rx_head = 0;
+		}
+		//if(RC_UART_data.rx_head == RC_UART_data.rx_tail)
+			//TODO: Log error: buffer full
+	} else if((UCA1IE & UCTXIE) && (UCA1IFG & UCTXIFG)){	//UART Txbuf ready interrupt
+		//Load data and clear interrupt
+		UCA1TXBUF = RC_UART_data.tx_bytes[RC_UART_data.tx_tail];
+		RC_UART_data.tx_tail++;
+		//Wraparound condition
+		if(RC_UART_data.tx_tail >= RC_UART_TX_BUF_SIZE){
+			RC_UART_data.tx_tail = 0;
+		}
+		//Disable Tx interrupt if last byte in buffer has been transmitted
+		if(RC_UART_data.tx_tail == RC_UART_data.tx_head){
+			disable_rc_uart_txint();
 		}
 	} else {
 		//TODO: Log Error, should never go here
