@@ -217,6 +217,7 @@ void led_P4_7_off(void){
 /* Log warning code */
 void issue_warning(uint16_t warn_code){
 	led_P5_6_on();
+	led_P5_7_off();
 	warn_flag = 1;
 	warn_log[warn_log_ptr] = warn_code;
 	warn_log_ptr++;
@@ -229,6 +230,7 @@ void issue_warning(uint16_t warn_code){
 /* Log error code */
 void issue_error(uint16_t err_code){
 	 led_P4_7_on();
+	 led_P5_7_off();
 	 err_flag = 1;
 	 err_log[err_log_ptr] = err_code;
 	 if(err_log_ptr >= ERR_LOG_SIZE){

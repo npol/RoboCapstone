@@ -109,6 +109,13 @@ int main(void) {
 	P4DIR |= BIT7;	//Debug ERR LED
 	P5DIR |= BIT6;	//Debug WARN LED
 	P5DIR |= BIT7;	//Debug OK LED
+	led_P1_0_off();
+	led_P2_2_off();
+	led_P7_7_off();
+	led_P4_7_off();
+	led_P5_6_off();
+	led_P5_7_off();
+	led_P5_7_on();
 	setup_clock();
 	setup_dbg_uart();
 	setup_rc_uart();
@@ -146,6 +153,7 @@ void roboclaw_task(void){
 		//State action: nothing
 		//State transition
 		if(timer_TA2_tick){						//T_DRV2
+			timer_TA2_tick = 0;
 			rcCurrState = TIME_INTERVALS;
 		} else if(run_enc_flag){				//T_DRV1
 			rcCurrState = SEND_ENC1_REQ;
@@ -537,6 +545,12 @@ void debug_task(void){
 			//>P8 get
 			response_size = P8_get(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"testwarn",8)==0) && (debug_cmd_buf_ptr == 8)){
+			//>testwarn
+			issue_warning(WARN_TEST);
+		} else if((strncmp(debug_cmd_buf,"testerr",7)== 0) && (debug_cmd_buf_ptr == 7)){
+			//>testerr
+			issue_error(ERROR_TEST);
 		} else if((strncmp(debug_cmd_buf,"drill en",8)==0) && (debug_cmd_buf_ptr == 8)){
 			//>drill en
 			drill_enable();
@@ -564,6 +578,8 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"step dis",8)==0) && (debug_cmd_buf_ptr == 8)){
 			//>step dis
 			stepper_disable();
+		} else if((strncmp(debug_cmd_buf,"forceTA2",8)==0) && (debug_cmd_buf_ptr == 8)){
+			timer_TA2_tick = 1;
 /*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
 			//can tx 0x00
 			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
@@ -636,8 +652,8 @@ __interrupt void USCIA1_ISR(void){
 		if(RC_UART_data.rx_head >= RC_UART_RX_BUF_SIZE){
 			RC_UART_data.rx_head = 0;
 		}
-		//if(RC_UART_data.rx_head == RC_UART_data.rx_tail)
-			//TODO: Log error: buffer full
+		if(RC_UART_data.rx_head == RC_UART_data.rx_tail)
+			issue_warning(WARN_DBG_RX_BUF_FULL);
 	} else if((UCA1IE & UCTXIE) && (UCA1IFG & UCTXIFG)){	//UART Txbuf ready interrupt
 		//Load data and clear interrupt
 		UCA1TXBUF = RC_UART_data.tx_bytes[RC_UART_data.tx_tail];

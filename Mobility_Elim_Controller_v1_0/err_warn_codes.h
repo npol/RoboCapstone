@@ -15,6 +15,7 @@
 #define ERR_XT1_FAULT			0x0003
 #define ERR_DCO_FAULT			0x0004
 #define ERR_FLASH_VIOL			0x0005
+#define ERROR_TEST				0x0006
 
 /* Application specific Errors */
 
@@ -43,6 +44,7 @@
 #define WARN_RSTFLLUL			0x001D
 #define ERR_RST_PERF			0x001E
 #define WARN_RST_PMM_KEY		0x001F
+#define WARN_TEST				0x0020
 
 /* Application specific Warnings */
 #define WARN_RC_TX_BUF_FULL1	0x8000
