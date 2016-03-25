@@ -7,6 +7,7 @@
 
 #include "utils.h"
 
+
 /* Create numerical byte from hex ascii characters
  * high_char: ascii code for high nibble
  * low_char: ascii code for low nibble
@@ -211,5 +212,37 @@ void led_P4_7_on(void){
 void led_P4_7_off(void){
 	P4OUT &= ~BIT7;
 	return;
+}
+
+/* Log warning code */
+void issue_warning(uint16_t warn_code){
+	led_P5_6_on();
+	warn_flag = 1;
+	warn_log[warn_log_ptr] = warn_code;
+	warn_log_ptr++;
+	if(warn_log_ptr >= WARN_LOG_SIZE){
+		issue_error(ERR_TOO_MANY_WARNS);
+		warn_log_ptr = 0;
+	}
+}
+
+/* Log error code */
+void issue_error(uint16_t err_code){
+	 led_P4_7_on();
+	 err_flag = 1;
+	 err_log[err_log_ptr] = err_code;
+	 if(err_log_ptr >= ERR_LOG_SIZE){
+		 err_log_ptr = 0;
+	 }
+}
+
+/* Function for external checking of error status */
+uint8_t is_error(void){
+	return err_flag;
+}
+
+/* Function for external checking of warning status */
+uint8_t is_warning(void){
+	return warn_flag;
 }
 

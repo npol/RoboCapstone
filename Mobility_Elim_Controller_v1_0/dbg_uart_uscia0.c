@@ -63,7 +63,7 @@ void dbg_uart_send_byte(uint8_t data){
 		DBG_UART_data.tx_head = 0;
 	}
 	if(DBG_UART_data.tx_head == DBG_UART_data.tx_tail){	//Buffer overflow
-		//TODO Error: buffer full
+		issue_warning(WARN_DBG_TX_BUF_FULL1);
 	}
 	enable_dbg_uart_txint();		//Data sent via UART interrupt
 	return;
@@ -78,7 +78,7 @@ void dbg_uart_send_string(uint8_t *data, uint8_t size){
 			DBG_UART_data.tx_head = 0;
 		}
 		if(DBG_UART_data.tx_tail == DBG_UART_data.tx_head){	//Buffer overflow
-			//TODO Error: buffer full
+			issue_warning(WARN_DBG_TX_BUF_FULL2);
 		}
 	}
 	enable_dbg_uart_txint();
@@ -99,7 +99,7 @@ uint8_t dbg_uart_get_byte(void){
 		DBG_UART_data.rx_tail = 0;
 	}
 	if(DBG_UART_data.rx_head == DBG_UART_data.rx_tail){
-		//TODO flag error, buffer overflow
+		issue_warning(WARN_DBG_RX_BUF_FULL);
 	}
 	return rx_byte;
 }

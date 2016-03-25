@@ -1,0 +1,66 @@
+/*
+ * err_warn_codes.h
+ *
+ *  Created on: Mar 25, 2016
+ *      Author: nishant
+ */
+
+#ifndef ERR_WARN_CODES_H_
+#define ERR_WARN_CODES_H_
+
+/* General Errors */
+#define ERR_NONE				0x0000
+#define ERR_TOO_MANY_WARNS		0x0001
+#define ERR_XT2_FAULT			0x0002
+#define ERR_XT1_FAULT			0x0003
+#define ERR_DCO_FAULT			0x0004
+#define ERR_FLASH_VIOL			0x0005
+
+/* Application specific Errors */
+
+/* General Warnings */
+#define WARN_NONE				0x0000
+#define WARN_DBG_BUFF_OVERRUN	0x0001
+#define WARN_DBG_TX_BUF_FULL1	0x0002
+#define WARN_DBG_TX_BUF_FULL2	0x0003
+#define WARN_DBG_RX_BUF_FULL	0x0004
+#define WARN_USCIA0_INT_ILLEGAL_FLAG	0x0005
+#define WARN_USCIA1_INT_ILLEGAL_FLAG	0x0006
+#define WARN_NMI				0x0007
+#define WARN_RST_BOR			0x0010
+#define WARN_RST_RSTNMI			0x0011
+#define WARN_RST_DOBOR			0x0012
+#define WARN_RST_LPM5WU			0x0013
+#define WARN_RST_SECYV			0x0014
+#define WARN_RST_SVSL			0x0015
+#define WARN_RST_SVSH			0x0016
+#define WARN_RST_SVMLOVP		0x0017
+#define WARN_RST_SVMHOVP		0x0018
+#define WARN_RST_DOPOR			0x0019
+#define WARN_RST_WDTTO			0x001A
+#define WARN_RST_WDTKEY			0x001B
+#define WARN_RST_KEYV			0x001C
+#define WARN_RSTFLLUL			0x001D
+#define ERR_RST_PERF			0x001E
+#define WARN_RST_PMM_KEY		0x001F
+
+/* Application specific Warnings */
+#define WARN_RC_TX_BUF_FULL1	0x8000
+#define WARN_RC_TX_BUF_FULL2	0x8001
+#define WARN_RC_RX_BUF_FULL		0x8002
+#define WARN_RC_SM_ASYNC_PCKT_FAIL	0x8100
+#define WARN_RC_SM_ENC1_PCKT_FAIL 0x8101
+#define WARN_RC_SM_ENC2_PCKT_FAIL 0x8102
+#define WARN_RC_SM_ENC1_DATA_FAIL 0x8103
+#define WARN_RC_SM_ENC2_DATA_FAIL 0x8104
+#define WARN_RC_SM_MBATT_PCKT_FAIL 0x8105
+#define WARN_RC_SM_LBATT_PCKT_FAIL 0x8106
+#define WARN_RC_SM_MCUR_PCKT_FAIL	0x8107
+#define WARN_RC_SM_TEMP_PCKT_FAIL 0x8108
+#define WARN_RC_SM_STAT_PCKT_FAIL 0x8109
+#define WARN_ILLEGAL_RC_SM_STATE	0x810A
+
+
+
+
+#endif /* ERR_WARN_CODES_H_ */

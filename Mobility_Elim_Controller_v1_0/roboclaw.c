@@ -113,6 +113,25 @@ uint8_t checkRCcurrents(uint8_t *buf){
 	return 2;
 }
 
+/* Read board temperature
+ * buf: character buffer, at least 2 bytes
+ */
+uint8_t checkRCtemp(uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_READ_TEMP;
+	return 2;
+}
+
+/* Read roboclaw status
+ * buf: character buffer, at least 2 bytes
+ *
+ */
+uint8_t checkRCstatus(uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_GET_STATUS;
+	return 2;
+}
+
 /* Enable ESTOP on S3
  * buf: character buffer, at least 7 bytes
  */
@@ -141,6 +160,24 @@ uint8_t RCdisableESTOP(uint8_t *buf){
 	buf[5] = (uint8_t)(packet_crc>>8);
 	buf[6] = (uint8_t)packet_crc;
 	return 7;
+}
+
+/* Get Encoder 1 count
+ * buf: character buffer, at least 2 bytes
+ */
+uint8_t RCgetEnc1Count(uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_READ_M1_ENC_COUNT;
+	return 2;
+}
+
+/* Get Encoder 2 count
+ * buf: character buffer, at least 2 bytes
+ */
+uint8_t RCgetEnc2Count(uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_READ_M2_ENC_COUNT;
+	return 2;
 }
 
 /* Datasheet provided function to calculate CRC

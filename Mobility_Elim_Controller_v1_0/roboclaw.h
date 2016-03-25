@@ -32,6 +32,10 @@
 #define RC_SET_PIN_MODES 74
 #define RC_GET_TEMP 82
 #define RC_GET_STATUS 90
+#define RC_READ_M1_ENC_COUNT 16
+#define RC_READ_M2_ENC_COUNT 17
+#define RC_READ_TEMP 82
+#define RC_GET_STATUS 90
 #define RC_GET_ENC_MODE 91
 
 uint8_t driveM1Power(int8_t m1Pwr, uint8_t *buf);
@@ -42,8 +46,12 @@ uint8_t checkRCMainBatt(uint8_t *buf);
 uint8_t checkRCLogicBatt(uint8_t *buf);
 uint8_t checkRCPWM(uint8_t *buf);
 uint8_t checkRCcurrents(uint8_t *buf);
+uint8_t checkRCtemp(uint8_t *buf);
+uint8_t checkRCstatus(uint8_t *buf);
 uint8_t RCenableESTOP(uint8_t *buf);
 uint8_t RCdisableESTOP(uint8_t *buf);
+uint8_t RCgetEnc1Count(uint8_t *buf);
+uint8_t RCgetEnc2Count(uint8_t *buf);
 
 uint16_t crc16(uint8_t *packet, uint8_t nBytes);
 

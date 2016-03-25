@@ -39,6 +39,7 @@ void rc_uart_send_string(uint8_t *data, uint8_t size);
 uint8_t rc_uart_get_byte(void);
 uint8_t rc_uart_get_string(uint8_t *buffer, uint8_t size);
 uint8_t is_rc_uart_rx_data_ready(void);
+uint8_t is_rc_uart_rx_ndata_ready(void);
 
 
 
