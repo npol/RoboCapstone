@@ -322,3 +322,34 @@ uint8_t warning_dump(uint8_t *buf){
 	}
 	return (6*i+7);
 }
+
+/* Clear warning log */
+void clear_warnings(void){
+	warn_log_ptr = 0;
+	uint8_t i = 0;
+	for(i=0; i < WARN_LOG_SIZE; i++){
+		warn_log[i] = 0;
+	}
+	return;
+}
+
+/* Print analog monitoring values
+ * Nominal <space> Min <space> Max
+ * */
+uint8_t print_mon_analog_value(uint16_t *mon_value, uint8_t *buf){
+	//Current
+	buf[0] = '0';
+	buf[1] = 'x';
+	hex2ascii_int(mon_value[0], &buf[2], &buf[3], &buf[4], &buf[5]);
+	buf[2] = '\t';
+	//Minimum
+	buf[3] = '0';
+	buf[4] = 'x';
+	hex2ascii_int(mon_value[1], &buf[5], &buf[6], &buf[7], &buf[8]);
+	buf[9] = '\t';
+	//Maximum
+	buf[10] = '0';
+	buf[11] = 'x';
+	hex2ascii_int(mon_value[2], &buf[12], &buf[13], &buf[14], &buf[15]);
+	return 16;
+}

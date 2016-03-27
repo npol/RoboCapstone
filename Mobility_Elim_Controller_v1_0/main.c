@@ -73,6 +73,7 @@ typedef enum  {RC_WAIT,
 volatile rc_state_t rcCurrState = RC_WAIT;
 #define WAIT_THRESH 50000
 #define RC_RUN_CHECK_INTERVAL 1000
+volatile uint8_t rc_check_ran_once = 0;
 
 /* Struct to request asynchronous packet transaction */
 #define RC_REQ_SIZE 64
@@ -100,9 +101,79 @@ uint32_t enc1_count = 0;
 uint32_t enc2_count = 0;
 
 void roboclaw_task(void);
+void monitor_task(void);
+void monitor_setup(void);
 
 /** END Roboclaw task globals **/
 
+/** Monitoring task globals **/
+/* Struct to store monitoring data
+ * Analog readings: Array contains current value | min value | max value | ready flag
+ */
+struct monitor_data_struct{
+	uint16_t vsense_3V3[4];		//12-bit conversion of 3.3V rail voltage
+	uint16_t vsense_5V0[4];		//12-bit conversion of 5V rail voltage
+	uint16_t vsense_12V[4];		//12-bit conversion of 12V rail voltage
+	uint16_t rc_mbatt[4];		//16-bit conversion of roboclaw main battery voltage
+	uint16_t rc_lbatt[4];		//16-bit conversion of roboclaw logic battery voltage
+	uint16_t mcu_temp[4];		//12-bit conversion of MSP430 temperature
+	uint16_t rc_temp[4];		//16-bit conversion of roboclaw temperature
+	uint16_t m1_current[4];		//16-bit conversion of motor 1 current
+	uint16_t m2_current[4];		//16-bit conversion of motor 2 current
+	uint16_t drill_current[4];	//12-bit conversion of drill current
+	uint16_t rc_status;			//16-bit Roboclaw status
+	uint8_t estop_status;		//Set when ESTOP condition is active
+};
+struct monitor_data_struct monitor_data = {
+		.vsense_3V3 = {0},
+		.vsense_5V0 = {0},
+		.vsense_12V = {0},
+		.rc_mbatt = {0},
+		.rc_lbatt = {0},
+		.mcu_temp = {0},
+		.rc_temp = {0},
+		.m1_current = {0},
+		.m2_current = {0},
+		.drill_current = {0},
+		.rc_status = 0,
+		.estop_status = 0
+};
+//TODO: Update thresholds
+#define VSENSE_3V3_MIN 0x0000
+#define VSENSE_3V3_MAX 0xFFFF
+#define VSENSE_5V0_MIN 0x0000
+#define VSENSE_5V0_MAX	0xFFFF
+#define VSENSE_12V_MIN	0x0000
+#define VSENSE_12V_MAX	0xFFFF
+#define RC_MBATT_MIN	0x0000
+#define RC_MBATT_MAX	0xFFFF
+#define RC_LBATT_MIN	0x0000
+#define RC_LBATT_MAX	0xFFFF
+#define MCU_TEMP_MIN	0x0000
+#define MCU_TEMP_MAX	0xFFFF
+#define RC_TEMP_MIN		0x0000
+#define RC_TEMP_MAX		0xFFFF
+#define M_CURRENT_MIN	0x0000
+#define M_CURRENT_MAX	0xFFFF
+#define DR_CURRENT_MIN	0x0000
+#define DR_CURRENT_MAX	0xFFFF
+
+typedef enum  {MON_WAIT,
+				START_ADC1,	//Drill-
+				WAIT_ADC1,
+				START_ADC2,	//Drill+
+				WAIT_ADC2,
+				START_ADC8,	//5Vsense
+				WAIT_ADC8,
+				START_ADC9,	//12Vsense
+				WAIT_ADC9,
+				START_ADC10,	//Temp
+				WAIT_ADC10,
+				START_ADC11,//3.3V divider
+				WAIT_ADC11,
+				SEND_MON_PCKT} mon_state_t;
+volatile mon_state_t monCurrState = MON_WAIT;
+#define MON_CNT_THRESH 100
 /** Main Loop **/
 
 int main(void) {
@@ -133,6 +204,7 @@ int main(void) {
     {
         debug_task();
         roboclaw_task();
+        monitor_task();
         /*
         if(is_rc_uart_rx_data_ready()){
         	uint8_t rx_byte = rc_uart_get_byte();
@@ -154,6 +226,7 @@ void roboclaw_task(void){
 	static uint16_t wait_cntr = 0;		//counter to prevent hang while waiting for failed packet
 	uint8_t pckt_size = 0;				//Size of transmitted packet
 	uint8_t buf[16];					//Buffer for transmitted/recieved packet
+	uint16_t mbatt, lbatt, m1_curr, m2_curr, rc_temp;
 	switch(rcCurrState){
 	case RC_WAIT:
 		//State action: nothing
@@ -324,7 +397,17 @@ void roboclaw_task(void){
 		if(pckt_size == 0){
 			issue_warning(WARN_RC_SM_MBATT_DATA_FAIL);
 		}
-		//TODO: publish main battery voltage
+		//Publish main battery voltage
+		mbatt = ((uint16_t)buf[0]<<8)|(uint16_t)buf[1];
+		monitor_data.rc_mbatt[0] = mbatt;
+		if((mbatt < monitor_data.rc_mbatt[1]) || !monitor_data.rc_mbatt[3]){	//New minimum
+			monitor_data.rc_mbatt[1] = mbatt;
+		}
+		if((mbatt > monitor_data.rc_mbatt[2]) || !monitor_data.rc_mbatt[3]){	//New maximum
+			monitor_data.rc_mbatt[2] = mbatt;
+		}
+		monitor_data.rc_mbatt[3] = 1;
+		//Send next packet
 		wait_cntr = 0;
 		pckt_size = checkRCLogicBatt(buf);			//Get packet
 		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
@@ -356,7 +439,17 @@ void roboclaw_task(void){
 		if(pckt_size == 0){
 			issue_warning(WARN_RC_SM_LBATT_DATA_FAIL);
 		}
-		//TODO: publish Logic battery voltage
+		//Publish logic battery voltage
+		lbatt = ((uint16_t)buf[0]<<8)|(uint16_t)buf[1];
+		monitor_data.rc_lbatt[0] = lbatt;
+		if((lbatt < monitor_data.rc_lbatt[1]) || !monitor_data.rc_lbatt[3]){	//New minimum
+			monitor_data.rc_lbatt[1] = lbatt;
+		}
+		if((lbatt > monitor_data.rc_lbatt[2]) || !monitor_data.rc_lbatt[3]){	//New maximum
+			monitor_data.rc_lbatt[2] = lbatt;
+		}
+		monitor_data.rc_lbatt[3] = 1;
+		//Send next packet
 		wait_cntr = 0;
 		pckt_size = checkRCcurrents(buf);			//Get packet
 		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
@@ -388,7 +481,27 @@ void roboclaw_task(void){
 		if(pckt_size == 0){
 			issue_warning(WARN_RC_SM_MCUR_DATA_FAIL);
 		}
-		//TODO: publish Motor Currents
+		//Publish motor 1 current
+		m1_curr = ((uint16_t)buf[0]<<8)|(uint16_t)buf[1];
+		monitor_data.m1_current[0] = m1_curr;
+		if((m1_curr < monitor_data.m1_current[1]) || !monitor_data.m1_current[3]){	//New minimum
+			monitor_data.m1_current[1] = m1_curr;
+		}
+		if((m1_curr > monitor_data.m1_current[2]) || !monitor_data.m1_current[3]){	//New maximum
+			monitor_data.m1_current[2] = m1_curr;
+		}
+		monitor_data.m1_current[3] = 1;
+		//Publish motor 2 current
+		m2_curr = ((uint16_t)buf[2]<<8)|(uint16_t)buf[3];
+		monitor_data.m2_current[0] = m2_curr;
+		if((m2_curr < monitor_data.m2_current[1]) || !monitor_data.m2_current[3]){	//New minimum
+			monitor_data.m2_current[1] = m2_curr;
+		}
+		if((m2_curr > monitor_data.m2_current[2]) || !monitor_data.m2_current[3]){	//New maximum
+			monitor_data.m2_current[2] = m2_curr;
+		}
+		monitor_data.m2_current[3] = 1;
+		//Send next packet
 		wait_cntr = 0;
 		pckt_size = checkRCtemp(buf);			//Get packet
 		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
@@ -420,7 +533,17 @@ void roboclaw_task(void){
 		if(pckt_size == 0){
 			issue_warning(WARN_RC_SM_TEMP_DATA_FAIL);
 		}
-		//TODO: publish Temperature
+		//Publish roboclaw temperature
+		rc_temp = ((uint16_t)buf[0]<<8)|(uint16_t)buf[1];
+		monitor_data.rc_temp[0] = rc_temp;
+		if((rc_temp < monitor_data.rc_temp[1]) || !monitor_data.rc_temp[3]){	//New minimum
+			monitor_data.rc_temp[1] = rc_temp;
+		}
+		if((rc_temp > monitor_data.rc_temp[2]) || !monitor_data.rc_temp[3]){	//New maximum
+			monitor_data.rc_temp[2] = rc_temp;
+		}
+		monitor_data.rc_temp[3] = 1;
+		//Send next packet
 		wait_cntr = 0;
 		pckt_size = checkRCstatus(buf);			//Get packet
 		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
@@ -452,7 +575,8 @@ void roboclaw_task(void){
 		if(pckt_size == 0){
 			issue_warning(WARN_RC_SM_STAT_DATA_FAIL);
 		}
-		//TODO: publish status
+		//Publish roboclaw status
+		monitor_data.rc_status = ((uint16_t)buf[0]<<8)|(uint16_t)buf[1];
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV48
 		break;
@@ -464,6 +588,243 @@ void roboclaw_task(void){
 }
 
 /** END Roboclaw Task Functions **/
+
+/** Monitor Task Functions **/
+
+/* Setup monitoring task */
+void monitor_setup(void){
+	ADC12CTL0 = ADC12SHT1_12 +	//1024 ADCLK cycles for sampling
+				ADC12SHT0_12 +
+				ADC12REF2_5V +	//2.5V reference
+				ADC12REFON +	//Reference on
+				ADC12ON;		//ADC on
+	ADC12CTL1 = ADC12DIV_7 +	//clock divider: 8
+				ADC12SSEL_2 +	//clock source: MCLK
+				ADC12SHP;		//Use sampling timer
+	return;
+}
+
+void monitor_task(void){
+	static uint8_t run_mon_cnt = 0;	//Set when Check routine must run
+	static uint16_t drill_vzcr = 0;	//Negative reference for drill current
+	uint8_t pckt_size = 0;				//Size of transmitted packet
+	uint8_t buf[16];					//Buffer for transmitted/recieved packet
+	uint16_t conversion;
+	switch(monCurrState){
+	case MON_WAIT:
+		//State action
+		run_mon_cnt++;
+		//State transition
+		if(run_mon_cnt > MON_CNT_THRESH){
+			run_mon_cnt = 0;
+			monCurrState = START_ADC1;	//T_MON0
+		} else {
+			monCurrState = MON_WAIT;	//T_MON1
+		}
+		break;
+	case START_ADC1:
+		//State action
+		ADC12CTL0 &= ~ADC12ENC;			//Disable conversions to change channel
+		ADC12MCTL0 = ADC12INCH_1;		//A1
+		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
+		//State transition
+		monCurrState = WAIT_ADC1;		//T_MON2
+		break;
+	case WAIT_ADC1:
+		//State action: nothing
+		//State transition
+		if(ADC12IFG & ADC12IFG0){
+			monCurrState = START_ADC2;	//T_MON4
+		} else {
+			monCurrState = WAIT_ADC1;	//T_MON3
+		}
+		break;
+	case START_ADC2:
+		//State action
+		drill_vzcr = ADC12MEM0;			//Get drill current reference
+		ADC12CTL0 &= ~ADC12ENC;			//Disable conversions to change channel
+		ADC12MCTL0 = ADC12INCH_2;		//A2
+		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
+		//State transition
+		monCurrState = WAIT_ADC2;		//T_MON5
+		break;
+	case WAIT_ADC2:
+		//State action: nothing
+		//State transition
+		if(ADC12IFG & ADC12IFG0){
+			monCurrState = START_ADC8;	//T_MON7
+		} else {
+			monCurrState = WAIT_ADC2;	//T_MON6
+		}
+		break;
+	case START_ADC8:
+		//State action
+		conversion = ADC12MEM0 - drill_vzcr;	//Get drill current
+		monitor_data.drill_current[0] = conversion;
+		if((conversion < monitor_data.drill_current[1]) || !monitor_data.drill_current[3]){
+			monitor_data.drill_current[1] = conversion;
+		}
+		if((conversion > monitor_data.drill_current[2]) || !monitor_data.drill_current[3]){
+			monitor_data.drill_current[2] = conversion;
+		}
+		monitor_data.drill_current[3] = 1;
+		ADC12CTL0 &= ~ADC12ENC;			//Disable conversions to change channel
+		ADC12MCTL0 = ADC12INCH_8;		//A8
+		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
+		//State transition
+		monCurrState = WAIT_ADC8;		//T_MON8
+		break;
+	case WAIT_ADC8:
+		//State action: nothing
+		//State transition
+		if(ADC12IFG & ADC12IFG0){
+			monCurrState = START_ADC9;	//T_MON10
+		} else {
+			monCurrState = WAIT_ADC8;	//T_MON9
+		}
+		break;
+	case START_ADC9:
+		//State action
+		conversion = ADC12MEM0;	//Get 5V sense voltage
+		monitor_data.vsense_5V0[0] = conversion;
+		if((conversion < monitor_data.vsense_5V0[1]) || !monitor_data.vsense_5V0[3]){
+			monitor_data.vsense_5V0[1] = conversion;
+		}
+		if((conversion > monitor_data.vsense_5V0[2]) || !monitor_data.vsense_5V0[3]){
+			monitor_data.vsense_5V0[2] = conversion;
+		}
+		monitor_data.vsense_5V0[3] = 1;
+		ADC12CTL0 &= ~ADC12ENC;			//Disable conversions to change channel
+		ADC12MCTL0 = ADC12INCH_9;		//A9
+		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
+		//State transition
+		monCurrState = WAIT_ADC2;		//T_MON11
+		break;
+	case WAIT_ADC9:
+		//State action: nothing
+		//State transition
+		if(ADC12IFG & ADC12IFG0){
+			monCurrState = START_ADC10;	//T_MON13
+		} else {
+			monCurrState = WAIT_ADC9;	//T_MON12
+		}
+		break;
+	case START_ADC10:
+		//State action
+		conversion = ADC12MEM0;	//Get 12V sense voltage
+		monitor_data.vsense_12V[0] = conversion;
+		if((conversion < monitor_data.vsense_12V[1]) || !monitor_data.vsense_12V[3]){
+			monitor_data.vsense_12V[1] = conversion;
+		}
+		if((conversion > monitor_data.vsense_12V[2]) || !monitor_data.vsense_12V[3]){
+			monitor_data.vsense_12V[2] = conversion;
+		}
+		monitor_data.vsense_12V[3] = 1;
+		ADC12CTL0 &= ~ADC12ENC;			//Disable conversions to change channel
+		ADC12CTL0 &= ~ADC12REF2_5V;		//1.5V reference
+		ADC12MCTL0 = ADC12INCH_10 + ADC12SREF_1;		//A10, REF+
+		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
+		//State transition
+		monCurrState = WAIT_ADC10;		//T_MON14
+		break;
+	case WAIT_ADC10:
+		//State action: nothing
+		//State transition
+		if(ADC12IFG & ADC12IFG0){
+			monCurrState = START_ADC11;	//T_MON16
+		} else {
+			monCurrState = WAIT_ADC10;	//T_MON15
+		}
+		break;
+	case START_ADC11:
+		//State action
+		conversion = ADC12MEM0;	//Get Temp voltage
+		monitor_data.mcu_temp[0] = conversion;
+		if((conversion < monitor_data.mcu_temp[1]) || !monitor_data.mcu_temp[3]){
+			monitor_data.mcu_temp[1] = conversion;
+		}
+		if((conversion > monitor_data.mcu_temp[2]) || !monitor_data.mcu_temp[3]){
+			monitor_data.mcu_temp[2] = conversion;
+		}
+		monitor_data.mcu_temp[3] = 1;
+		ADC12CTL0 &= ~ADC12ENC;			//Disable conversions to change channel
+		ADC12CTL0 |= ADC12REF2_5V;		//2.5V reference
+		ADC12MCTL0 = ADC12INCH_11 + ADC12SREF_1;		//A11, VREF+
+		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
+		//State transition
+		monCurrState = WAIT_ADC11;		//T_MON17
+		break;
+	case WAIT_ADC11:
+		//State action: nothing
+		//State transition
+		if(ADC12IFG & ADC12IFG0){
+			monCurrState = SEND_MON_PCKT;//T_MON19
+		} else {
+			monCurrState = WAIT_ADC11;	//T_MON18
+		}
+		break;
+	case SEND_MON_PCKT:
+		//State action
+		conversion = ADC12MEM0;	//Get 3.3V sense voltage
+		monitor_data.vsense_3V3[0] = conversion;
+		if((conversion < monitor_data.vsense_3V3[1]) || !monitor_data.vsense_3V3[3]){
+			monitor_data.vsense_3V3[1] = conversion;
+		}
+		if((conversion > monitor_data.vsense_3V3[2]) || !monitor_data.vsense_3V3[3]){
+			monitor_data.vsense_3V3[2] = conversion;
+		}
+		monitor_data.vsense_3V3[3] = 1;
+		//Check parameters.  All values valid since to reach this state, all conversions must be completed.
+		if(monitor_data.vsense_3V3[0] < VSENSE_3V3_MIN) issue_warning(WARN_LOW_3V3);
+		if(monitor_data.vsense_3V3[0] > VSENSE_3V3_MAX) issue_warning(WARN_HIGH_3V3);
+		if(monitor_data.vsense_5V0[0] < VSENSE_5V0_MIN) issue_warning(WARN_LOW_5V0);
+		if(monitor_data.vsense_5V0[0] > VSENSE_5V0_MAX) issue_warning(WARN_HIGH_5V0);
+		if(monitor_data.vsense_12V[0] < VSENSE_12V_MIN) issue_warning(WARN_LOW_12V);
+		if(monitor_data.vsense_12V[0] > VSENSE_12V_MAX) issue_warning(WARN_HIGH_12V);
+		if(monitor_data.mcu_temp[0] < MCU_TEMP_MIN) issue_warning(WARN_LOW_MCU_TEMP);
+		if(monitor_data.mcu_temp[0] > MCU_TEMP_MAX) issue_warning(WARN_HIGH_MCU_TEMP);
+		if(monitor_data.drill_current[0] < DR_CURRENT_MIN) issue_warning(WARN_LOW_DRILL_CURRENT);
+		if(monitor_data.drill_current[0] > DR_CURRENT_MAX) issue_warning(WARN_HIGH_DRILL_CURRENT);
+		if(monitor_data.estop_status) issue_warning(ESTOP_ACTIVATED);
+		//These parameters are gathered by other tasks, so need to know if ran at least once.
+		if(rc_check_ran_once){
+			if(monitor_data.rc_mbatt[0] < RC_MBATT_MIN) issue_warning(WARN_LOW_RC_MBATT);
+			if(monitor_data.rc_mbatt[0] > RC_MBATT_MAX) issue_warning(WARN_HIGH_RC_MBATT);
+			if(monitor_data.rc_lbatt[0] < RC_LBATT_MIN) issue_warning(WARN_LOW_RC_LBATT);
+			if(monitor_data.rc_lbatt[0] > RC_LBATT_MAX) issue_warning(WARN_HIGH_RC_LBATT);
+			if(monitor_data.m1_current[0] < M_CURRENT_MIN) issue_warning(WARN_LOW_M1_CURRENT);
+			if(monitor_data.m1_current[0] > M_CURRENT_MAX) issue_warning(WARN_HIGH_M1_CURRENT);
+			if(monitor_data.m2_current[0] < M_CURRENT_MIN) issue_warning(WARN_LOW_M2_CURRENT);
+			if(monitor_data.m2_current[0] > M_CURRENT_MAX) issue_warning(WARN_HIGH_M2_CURRENT);
+			if(monitor_data.rc_temp[0] < RC_TEMP_MIN) issue_warning(WARN_LOW_RC_TEMP);
+			if(monitor_data.rc_temp[0] > RC_TEMP_MAX) issue_warning(WARN_HIGH_RC_TEMP);
+			if(monitor_data.rc_status & RC_STAT_M1_OVERCURRENT) issue_warning(WARN_RC_M1_OVERCURRENT);
+			if(monitor_data.rc_status & RC_STAT_M2_OVERCURRENT) issue_warning(WARN_RC_M2_OVERCURRENT);
+			if(monitor_data.rc_status & RC_STAT_ESTOP) issue_warning(WARN_RC_ESTOP);
+			if(monitor_data.rc_status & RC_STAT_TEMP_ERR) issue_warning(WARN_RC_TEMP_ERR);
+			if(monitor_data.rc_status & RC_STAT_TEMP2_ERR) issue_warning(WARN_RC_TEMP2_ERR);
+			if(monitor_data.rc_status & RC_STAT_MBATT_H_ERR) issue_warning(WARN_RC_MBATT_H_ERR);
+			if(monitor_data.rc_status & RC_STAT_LBATT_H_ERR) issue_warning(WARN_RC_LBATT_H_ERR);
+			if(monitor_data.rc_status & RC_STAT_LBATT_L_ERR) issue_warning(WARN_RC_LBATT_L_ERR);
+			if(monitor_data.rc_status & RC_STAT_M1_FAULT) issue_warning(WARN_RC_M1_FAULT);
+			if(monitor_data.rc_status & RC_STAT_M2_FAULT) issue_warning(WARN_RC_M2_FAULT);
+			if(monitor_data.rc_status & RC_STAT_MBATT_H_WARN) issue_warning(WARN_RC_MBATT_H_WARN);
+			if(monitor_data.rc_status & RC_STAT_MBATT_L_WARN) issue_warning(WARN_RC_MBATT_L_WARN);
+			if(monitor_data.rc_status & RC_STAT_TEMP_WARN) issue_warning(WARN_RC_TEMP_WARN);
+			if(monitor_data.rc_status & RC_STAT_TEMP2_WARN) issue_warning(WARN_RC_TEMP2_WARN);
+		}
+		//TODO: send CAN status packet
+		//State transition
+		monCurrState = MON_WAIT;		//T_MON20
+		break;
+	default:
+		issue_warning(WARN_ILLEGAL_MON_SM_STATE);
+		monCurrState = MON_WAIT;
+		break;
+	}
+}
+
+/** END Monitor Task Functions **/
 
 /** Debug Task functions **/
 
@@ -593,6 +954,79 @@ void debug_task(void){
 			//>errdump
 			response_size = error_dump(response_buf);
 			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"warnclear",9)==0) && (debug_cmd_buf_ptr == 9)){
+			//>warnclear
+			clear_warnings();
+		} else if((strncmp(debug_cmd_buf,"mon drill",9)==0) && (debug_cmd_buf_ptr == 9)){
+			//>mon drill
+			response_size = print_mon_analog_value(monitor_data.drill_current, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon estop",9)==0) && (debug_cmd_buf_ptr == 9)){
+			//>mon estop
+			if(monitor_data.estop_status){
+				response_buf[0] = 'o';
+				response_buf[1] = 'n';
+				response_size = 2;
+			} else {
+				response_buf[0] = 'o';
+				response_buf[1] = 'f';
+				response_buf[2] = 'f';
+				response_size = 3;
+			}
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon m1I",7)==7) && (debug_cmd_buf_ptr == 7)){
+			//>mon m1I
+			response_size = print_mon_analog_value(monitor_data.m1_current, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon m2I",7)==7) && (debug_cmd_buf_ptr == 7)){
+			//>mon m2I
+			response_size = print_mon_analog_value(monitor_data.m2_current, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon mcu temp",12)==0) && (debug_cmd_buf_ptr == 12)){
+			//>mon mcu temp
+			response_size = print_mon_analog_value(monitor_data.mcu_temp, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon rc lbatt",12)==0) && (debug_cmd_buf_ptr == 12)){
+			//>mon rc lbatt
+			response_size = print_mon_analog_value(monitor_data.rc_lbatt, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon rc mbatt",12) == 0) && (debug_cmd_buf_ptr == 12)){
+			//>mon rc mbatt
+			response_size = print_mon_analog_value(monitor_data.rc_mbatt, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon rc status",13)==0) && (debug_cmd_buf_ptr == 13)){
+			//>mon rc status
+			response_size = print_mon_analog_value(monitor_data.rc_status, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon rc temp",11)==0) && (debug_cmd_buf_ptr == 11)){
+			//>mon rc temp
+			response_size = print_mon_analog_value(monitor_data.rc_temp, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon 12V",7)==0) && (debug_cmd_buf_ptr == 7)){
+			//>mon 12V
+			response_size = print_mon_analog_value(monitor_data.vsense_12V, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon 3V3",7)==0) && (debug_cmd_buf_ptr == 7)){
+			//>mon 3V3
+			response_size = print_mon_analog_value(monitor_data.vsense_3V3, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"mon 5V0",7)==0) && (debug_cmd_buf_ptr == 7)){
+			//>mon 5V0
+			response_size = print_mon_analog_value(monitor_data.vsense_5V0, response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"encoders",8)==0) && (debug_cmd_buf_ptr == 8)){
+			//>encoders
+			response_buf[0] = '0';
+			response_buf[1] = 'x';
+			hex2ascii_int((uint16_t)(enc1_count>>16), &response_buf[2], &response_buf[3], &response_buf[4], &response_buf[5]);
+			hex2ascii_int((uint16_t)(enc1_count), &response_buf[6], &response_buf[7], &response_buf[8], &response_buf[9]);
+			response_buf[10] = '\t';
+			response_buf[11] = '0';
+			response_buf[12] = 'x';
+			hex2ascii_int((uint16_t)(enc2_count>>16), &response_buf[13], &response_buf[14], &response_buf[15], &response_buf[16]);
+			hex2ascii_int((uint16_t)(enc2_count), &response_buf[17], &response_buf[18], &response_buf[19], &response_buf[20]);
+			response_size = 21;
+			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"drill en",8)==0) && (debug_cmd_buf_ptr == 8)){
 			//>drill en
 			drill_enable();
@@ -688,8 +1122,8 @@ __interrupt void USCIA0_ISR(void){
 		if(DBG_UART_data.rx_head >= DBG_UART_RX_BUF_SIZE){
 			DBG_UART_data.rx_head = 0;
 		}
-		//if(DBG_UART_data.rx_head == DBG_UART_data.rx_tail)
-			//TODO: Log error: buffer full
+		if(DBG_UART_data.rx_head == DBG_UART_data.rx_tail)
+			issue_warning(WARN_DBG_RX_BUF_FULL);
 	} else if((UCA0IE & UCTXIE) && (UCA0IFG & UCTXIFG)){	//UART Txbuf ready interrupt
 		//Load data and clear interrupt
 		UCA0TXBUF = DBG_UART_data.tx_bytes[DBG_UART_data.tx_tail];

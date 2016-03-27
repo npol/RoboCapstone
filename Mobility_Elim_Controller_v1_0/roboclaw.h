@@ -38,6 +38,24 @@
 #define RC_GET_STATUS 90
 #define RC_GET_ENC_MODE 91
 
+#define RC_STAT_NORM			0x0000
+#define RC_STAT_M1_OVERCURRENT	0x0001
+#define RC_STAT_M2_OVERCURRENT	0x0002
+#define RC_STAT_ESTOP			0x0004
+#define RC_STAT_TEMP_ERR		0x0008
+#define RC_STAT_TEMP2_ERR		0x0010
+#define RC_STAT_MBATT_H_ERR		0x0020
+#define RC_STAT_LBATT_H_ERR		0x0040
+#define RC_STAT_LBATT_L_ERR		0x0080
+#define RC_STAT_M1_FAULT		0x0100
+#define RC_STAT_M2_FAULT		0x0200
+#define RC_STAT_MBATT_H_WARN	0x0400
+#define RC_STAT_MBATT_L_WARN	0x0800
+#define RC_STAT_TEMP_WARN		0x1000
+#define RC_STAT_TEMP2_WARN		0x2000
+#define RC_STAT_M1_HOME			0x4000
+#define RC_STAT_M2_HOME			0x8000
+
 void roboclaw_setup(void);
 uint8_t driveM1Power(int8_t m1Pwr, uint8_t *buf);
 uint8_t driveM2Power(int8_t m2Pwr, uint8_t *buf);

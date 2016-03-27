@@ -60,6 +60,8 @@ uint8_t is_error(void);
 uint8_t is_warning(void);
 uint8_t error_dump(uint8_t *buf);
 uint8_t warning_dump(uint8_t *buf);
+void clear_warnings(void);
+uint8_t print_mon_analog_value(uint16_t *mon_value, uint8_t *buf);
 
 #endif /* UTILS_H_ */
 
