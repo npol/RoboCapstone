@@ -53,6 +53,41 @@ void hex2ascii_byte(uint8_t data, uint8_t *high_char, uint8_t *low_char){
 	return;
 }
 
+/* Create ascii character representation of numerical 16-bit int
+ * data: number to be converted
+ * char4: pointer to highest nibble character
+ * char3: pointer to mid-high nibble character
+ * char2: pointer to mid-low nibble character
+ * char1: pointer to low nibble character
+ */
+void hex2ascii_int(uint16_t data, uint8_t *char4, uint8_t *char3, uint8_t *char2, uint8_t *char1){
+	uint8_t upper = (data>>12)&0xf;
+	uint8_t up_mid = (data>>8)&0xf;
+	uint8_t low_mid = (data>>4)&0xf;
+	uint8_t lower = (data)&0xf;
+	if(upper <= 9){
+		*char4 = upper+'0';
+	} else if((10 <= upper) && (upper <= 15)){
+		*char4 = upper-10+'A';
+	}
+	if(up_mid <= 9){
+		*char3 = up_mid+'0';
+	} else if((10 <= up_mid) && (up_mid <= 15)){
+		*char3 = up_mid-10+'A';
+	}
+	if(low_mid <= 9){
+		*char2 = low_mid+'0';
+	} else if((10 <= low_mid) && (low_mid <= 15)){
+		*char2 = low_mid-10+'A';
+	}
+	if(lower <= 9){
+		*char1 = lower+'0';
+	} else if((10 <= lower) && (lower <= 15)){
+		*char1 = lower-10+'A';
+	}
+	return;
+}
+
 /* Get pin states of port 1
  * buf: character buffer of at least 4 bytes
  * returns 4, size of buffer
@@ -248,3 +283,42 @@ uint8_t is_warning(void){
 	return warn_flag;
 }
 
+/* Get dump of error codes
+ * buf: character buffer of at least 60 bytes
+ * returns 60, size of buffer
+ */
+uint8_t error_dump(uint8_t *buf){
+	uint8_t i;
+	buf[0] = '#';
+	buf[1] = '0';
+	buf[2] = 'x';
+	hex2ascii_byte(err_log_ptr,&buf[3],&buf[4]);
+	buf[5] = 13;	//CR+LF
+	buf[6] = 10;
+	for(i = 0; i < ERR_LOG_SIZE; i++){
+		hex2ascii_int(err_log[i],&buf[(6*i+7)],&buf[(6*i+7)+1],&buf[(6*i+7)+2],&buf[(6*i+7)+3]);
+		buf[(6*i+7)+4] = 13;	//CR+LF
+		buf[(6*i+7)+5] = 10;
+	}
+	return (6*i+7);
+}
+
+/* Get dump of warning codes
+ * buf: character buffer of at least 60 bytes
+ * returns 60, size of buffer
+ */
+uint8_t warning_dump(uint8_t *buf){
+	uint8_t i;
+	buf[0] = '#';
+	buf[1] = '0';
+	buf[2] = 'x';
+	hex2ascii_byte(warn_log_ptr,&buf[3],&buf[4]);
+	buf[5] = 13;	//CR+LF
+	buf[6] = 10;
+	for(i = 0; i < WARN_LOG_SIZE; i++){
+		hex2ascii_int(warn_log[i],&buf[(6*i+7)],&buf[(6*i+7)+1],&buf[(6*i+7)+2],&buf[(6*i+7)+3]);
+		buf[(6*i+7)+4] = 13;	//CR+LF
+		buf[(6*i+7)+5] = 10;
+	}
+	return (6*i+7);
+}

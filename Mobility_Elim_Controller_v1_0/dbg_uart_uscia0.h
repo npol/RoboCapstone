@@ -17,8 +17,8 @@
 #include <msp430.h>
 #include "utils.h"
 
-#define DBG_UART_TX_BUF_SIZE 64
-#define DBG_UART_RX_BUF_SIZE 64
+#define DBG_UART_TX_BUF_SIZE 250
+#define DBG_UART_RX_BUF_SIZE 250
 
 struct DBG_UART_data_struct{
 	uint8_t tx_bytes[DBG_UART_TX_BUF_SIZE];	//Bytes to send

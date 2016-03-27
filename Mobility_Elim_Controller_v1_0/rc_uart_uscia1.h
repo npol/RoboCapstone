@@ -18,8 +18,8 @@
 #include <msp430.h>
 #include "utils.h"
 
-#define RC_UART_TX_BUF_SIZE 64
-#define RC_UART_RX_BUF_SIZE 64
+#define RC_UART_TX_BUF_SIZE 250
+#define RC_UART_RX_BUF_SIZE 250
 
 struct RC_UART_data_struct{
 	uint8_t tx_bytes[RC_UART_TX_BUF_SIZE];	//Bytes to send

@@ -38,6 +38,7 @@
 #define RC_GET_STATUS 90
 #define RC_GET_ENC_MODE 91
 
+void roboclaw_setup(void);
 uint8_t driveM1Power(int8_t m1Pwr, uint8_t *buf);
 uint8_t driveM2Power(int8_t m2Pwr, uint8_t *buf);
 uint8_t getRCFwVer(uint8_t *buf);

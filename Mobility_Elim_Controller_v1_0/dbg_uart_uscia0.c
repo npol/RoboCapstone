@@ -98,9 +98,6 @@ uint8_t dbg_uart_get_byte(void){
 	if(DBG_UART_data.rx_tail >= DBG_UART_RX_BUF_SIZE){	//Wraparound condition
 		DBG_UART_data.rx_tail = 0;
 	}
-	//if(DBG_UART_data.rx_head == DBG_UART_data.rx_tail){
-	//	issue_warning(WARN_DBG_RX_BUF_FULL);
-	//}
 	return rx_byte;
 }
 

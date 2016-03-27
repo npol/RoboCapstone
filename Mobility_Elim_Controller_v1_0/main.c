@@ -21,8 +21,10 @@
 
 /** Debug task macros and globals **/
 void debug_task(void);
+void reset_isr(void);
 
 #define DEBUG_CMD_BUF_SIZE 32
+#define DEBUG_RESPONSE_BUF_SIZE 250
 uint8_t debug_cmd_buf[DEBUG_CMD_BUF_SIZE];
 uint8_t debug_cmd_buf_ptr = 0;
 /** END Debug task macros and globals **/
@@ -69,7 +71,7 @@ typedef enum  {RC_WAIT,
 				ERR_STAT_REQ,
 				CHECK_STAT_REQ} rc_state_t;
 volatile rc_state_t rcCurrState = RC_WAIT;
-#define WAIT_THRESH 100
+#define WAIT_THRESH 50000
 #define RC_RUN_CHECK_INTERVAL 1000
 
 /* Struct to request asynchronous packet transaction */
@@ -81,7 +83,7 @@ struct RC_async_request_struct{
 	uint8_t tx_nbytes;				//Number of bytes to send
 	uint8_t rx_nbytes;				//Number of bytes to recieve
 };
-volatile struct RC_async_request_struct RC_async_request = {
+struct RC_async_request_struct RC_async_request = {
 	.rc_request_flag = 0,
 	.tx_bytes = {0},
 	.rx_bytes = {0},
@@ -116,11 +118,13 @@ int main(void) {
 	led_P5_6_off();
 	led_P5_7_off();
 	led_P5_7_on();
+	reset_isr();
 	setup_clock();
 	setup_dbg_uart();
 	setup_rc_uart();
 	drill_setup();
 	stepper_setup();
+	roboclaw_setup();
     // Enable Interrupts
     __bis_SR_register(GIE);
     while(1)
@@ -145,7 +149,7 @@ void roboclaw_task(void){
 	static uint16_t timer_tics = 0;		//Number of TA2 tics to time encoders/check
 	static uint8_t run_enc_flag = 0;	//Set when encoders should be checked
 	static uint8_t run_check_flag = 0;	//Set when Check routine must run
-	static uint8_t wait_cntr = 0;		//counter to prevent hang while waiting for failed packet
+	static uint16_t wait_cntr = 0;		//counter to prevent hang while waiting for failed packet
 	uint8_t pckt_size = 0;				//Size of transmitted packet
 	uint8_t buf[16];					//Buffer for transmitted/recieved packet
 	switch(rcCurrState){
@@ -199,6 +203,7 @@ void roboclaw_task(void){
 		//State action
 		pckt_size = rc_uart_get_string(RC_async_request.rx_bytes,RC_async_request.rx_nbytes);
 		RC_async_request.rc_request_flag = 0;
+		//TODO: indicate to task that data is ready to be picked up, but don't clear request flag
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV9
 		break;
@@ -310,7 +315,12 @@ void roboclaw_task(void){
 		break;
 	case SEND_LBATT_REQ:
 		//State acton
-		//TODO: get and check data
+		//Get data from Main Battery request
+		pckt_size = rc_uart_get_string(buf,4);
+		if(pckt_size == 0){
+			issue_warning(WARN_RC_SM_MBATT_DATA_FAIL);
+		}
+		//TODO: publish main battery voltage
 		wait_cntr = 0;
 		pckt_size = checkRCLogicBatt(buf);			//Get packet
 		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
@@ -337,7 +347,12 @@ void roboclaw_task(void){
 		break;
 	case SEND_MCUR_REQ:
 		//State acton
-		//TODO: Get and check data
+		//Get data from logic battery voltage request
+		pckt_size = rc_uart_get_string(buf,4);
+		if(pckt_size == 0){
+			issue_warning(WARN_RC_SM_LBATT_DATA_FAIL);
+		}
+		//TODO: publish Logic battery voltage
 		wait_cntr = 0;
 		pckt_size = checkRCcurrents(buf);			//Get packet
 		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
@@ -364,7 +379,12 @@ void roboclaw_task(void){
 		break;
 	case SEND_TEMP_REQ:
 		//State acton
-		//TODO: Get and check data
+		//Get data from motor current request
+		pckt_size = rc_uart_get_string(buf,6);
+		if(pckt_size == 0){
+			issue_warning(WARN_RC_SM_MCUR_DATA_FAIL);
+		}
+		//TODO: publish Motor Currents
 		wait_cntr = 0;
 		pckt_size = checkRCtemp(buf);			//Get packet
 		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
@@ -391,7 +411,12 @@ void roboclaw_task(void){
 		break;
 	case SEND_STAT_REQ:
 		//State acton
-		//TODO: Get and check data
+		//Get data from temperature request
+		pckt_size = rc_uart_get_string(buf,4);
+		if(pckt_size == 0){
+			issue_warning(WARN_RC_SM_TEMP_DATA_FAIL);
+		}
+		//TODO: publish Temperature
 		wait_cntr = 0;
 		pckt_size = checkRCstatus(buf);			//Get packet
 		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
@@ -418,7 +443,12 @@ void roboclaw_task(void){
 		break;
 	case CHECK_STAT_REQ:
 		//State action
-		//TODO: Get and check status packet data
+		//Get data from status request
+		pckt_size = rc_uart_get_string(buf,3);
+		if(pckt_size == 0){
+			issue_warning(WARN_RC_SM_STAT_DATA_FAIL);
+		}
+		//TODO: publish status
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV48
 		break;
@@ -436,7 +466,7 @@ void roboclaw_task(void){
 /* Process debug command functions */
 void debug_task(void){
 	uint8_t debug_cmd_ready = 0;
-	uint8_t response_buf[DEBUG_CMD_BUF_SIZE];
+	uint8_t response_buf[DEBUG_RESPONSE_BUF_SIZE];
 	uint8_t response_size = 0;
 	//Check if serial data is ready to be formed into a command
 	if(is_dbg_uart_rx_data_ready()){
@@ -551,6 +581,14 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"testerr",7)== 0) && (debug_cmd_buf_ptr == 7)){
 			//>testerr
 			issue_error(ERROR_TEST);
+		} else if((strncmp(debug_cmd_buf,"warndump",8)==0) && (debug_cmd_buf_ptr == 8)){
+			//>warndump
+			response_size = warning_dump(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
+		} else if((strncmp(debug_cmd_buf,"errdump",7)==0) && (debug_cmd_buf_ptr == 7)){
+			//>errdump
+			response_size = error_dump(response_buf);
+			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"drill en",8)==0) && (debug_cmd_buf_ptr == 8)){
 			//>drill en
 			drill_enable();
@@ -580,6 +618,22 @@ void debug_task(void){
 			stepper_disable();
 		} else if((strncmp(debug_cmd_buf,"forceTA2",8)==0) && (debug_cmd_buf_ptr == 8)){
 			timer_TA2_tick = 1;
+		} else if((strncmp(debug_cmd_buf,"rc m1 ",6)==0) && (debug_cmd_buf_ptr == 8)){
+			//>rc m1 <hex value>
+			//>rc m1 2A
+			uint8_t speed = ascii2hex_byte(debug_cmd_buf[6],debug_cmd_buf[7]);
+			while(RC_async_request.rc_request_flag);	//Wait for open request buffer
+			RC_async_request.tx_nbytes = driveM1Power(speed,RC_async_request.tx_bytes);
+			RC_async_request.rx_nbytes = 1;
+			RC_async_request.rc_request_flag = 1;
+		} else if((strncmp(debug_cmd_buf,"rc m2 ",6)==0) && (debug_cmd_buf_ptr == 8)){
+			//>rc m2 <hex value>
+			//>rc m2 2A
+			uint8_t speed = ascii2hex_byte(debug_cmd_buf[6],debug_cmd_buf[7]);
+			while(RC_async_request.rc_request_flag);	//Wait for open request buffer
+			RC_async_request.tx_nbytes = driveM2Power(speed,RC_async_request.tx_bytes);
+			RC_async_request.rx_nbytes = 1;
+			RC_async_request.rc_request_flag = 1;
 /*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
 			//can tx 0x00
 			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
@@ -604,6 +658,16 @@ void debug_task(void){
 /** END Debug Task functions **/
 
 /** Interrupts **/
+
+/* Timer2 A0 interrupt service routine
+ * Trigger synchronous check/encoder routines on roboclaw
+ */
+#pragma vector=TIMER2_A0_VECTOR
+__interrupt void TIMER2_A0_ISR(void){
+	timer_TA2_tick = 1;
+}
+
+
 /* Debug UART USCIA0 Interrupt Handler
  * UART Rx: Recieves incoming bytes from debug channel, puts into Debug UART datastructure
  * UART Tx: Sends bytes from Debug UART datastructure to debug channel
@@ -653,7 +717,7 @@ __interrupt void USCIA1_ISR(void){
 			RC_UART_data.rx_head = 0;
 		}
 		if(RC_UART_data.rx_head == RC_UART_data.rx_tail)
-			issue_warning(WARN_DBG_RX_BUF_FULL);
+			issue_warning(WARN_RC_RX_BUF_FULL);
 	} else if((UCA1IE & UCTXIE) && (UCA1IFG & UCTXIFG)){	//UART Txbuf ready interrupt
 		//Load data and clear interrupt
 		UCA1TXBUF = RC_UART_data.tx_bytes[RC_UART_data.tx_tail];
@@ -718,8 +782,7 @@ __interrupt void unmi_isr(void){
 
 /* Reset Interrupt Handler
  */
-#pragma vector=RESET_VECTOR
-__interrupt void reset_isr(void){
+void reset_isr(void){
 	switch(SYSRSTIV){
 		case SYSRSTIV_NONE:
 			break;
@@ -736,7 +799,7 @@ __interrupt void reset_isr(void){
 			issue_warning(WARN_RST_LPM5WU);
 			break;
 		case SYSRSTIV_SECYV:
-			issue_warning(WARN_RST_SECYV);
+			//issue_warning(WARN_RST_SECYV); //Software reset
 			break;
 		case SYSRSTIV_SVSL:
 			issue_warning(WARN_RST_SVSL);
@@ -776,21 +839,3 @@ __interrupt void reset_isr(void){
 	}
 }
 /** END Interrupts **/
-
-#define SYSRSTIV_NONE          (0x0000)       /* No Interrupt pending */
-#define SYSRSTIV_BOR           (0x0002)       /* SYSRSTIV : BOR */
-#define SYSRSTIV_RSTNMI        (0x0004)       /* SYSRSTIV : RST/NMI */
-#define SYSRSTIV_DOBOR         (0x0006)       /* SYSRSTIV : Do BOR */
-#define SYSRSTIV_LPM5WU        (0x0008)       /* SYSRSTIV : Port LPM5 Wake Up */
-#define SYSRSTIV_SECYV         (0x000A)       /* SYSRSTIV : Security violation */
-#define SYSRSTIV_SVSL          (0x000C)       /* SYSRSTIV : SVSL */
-#define SYSRSTIV_SVSH          (0x000E)       /* SYSRSTIV : SVSH */
-#define SYSRSTIV_SVML_OVP      (0x0010)       /* SYSRSTIV : SVML_OVP */
-#define SYSRSTIV_SVMH_OVP      (0x0012)       /* SYSRSTIV : SVMH_OVP */
-#define SYSRSTIV_DOPOR         (0x0014)       /* SYSRSTIV : Do POR */
-#define SYSRSTIV_WDTTO         (0x0016)       /* SYSRSTIV : WDT Time out */
-#define SYSRSTIV_WDTKEY        (0x0018)       /* SYSRSTIV : WDTKEY violation */
-#define SYSRSTIV_KEYV          (0x001A)       /* SYSRSTIV : Flash Key violation */
-#define SYSRSTIV_FLLUL         (0x001C)       /* SYSRSTIV : FLL unlock */
-#define SYSRSTIV_PERF          (0x001E)       /* SYSRSTIV : peripheral/config area fetch */
-#define SYSRSTIV_PMMKEY        (0x0020)       /* SYSRSTIV : PMMKEY violation */

@@ -115,9 +115,6 @@ uint8_t rc_uart_get_byte(void){
 	if(RC_UART_data.rx_tail >= RC_UART_RX_BUF_SIZE){	//Wraparound condition
 		RC_UART_data.rx_tail = 0;
 	}
-	if(RC_UART_data.rx_head == RC_UART_data.rx_tail){
-		issue_warning(WARN_RC_RX_BUF_FULL);
-	}
 	return rx_byte;
 }
 
@@ -128,7 +125,8 @@ uint8_t rc_uart_get_byte(void){
  */
 uint8_t rc_uart_get_string(uint8_t *buffer, uint8_t size){
 	uint8_t i = 0;
-	if(!(is_rc_uart_rx_ndata_ready() == size)){	//Check that expected number of bytes is present
+	uint8_t act_nbytes = is_rc_uart_rx_ndata_ready();
+	if(!(act_nbytes == size)){	//Check that expected number of bytes is present
 		return 0;
 	}
 	for(i = 0; i < size; i++){

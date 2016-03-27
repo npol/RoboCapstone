@@ -15,6 +15,15 @@
 
 const uint8_t rc_fw_ver[27] = "USB Roboclaw 2x60a v4.1.13";
 
+void roboclaw_setup(void){
+	//Setup TA2 to fire at intervals for triggering encoders and check routines
+	//TA2CCTL0 = CCIE;                          // CCR0 interrupt enabled
+	TA2CCR0 = 50000;
+	TA2CTL = TASSEL_2 + MC_1 + TACLR + ID_3;         // SMCLK, upmode, clear TAR, div8
+	TA2EX0 = TAIDEX_7;							//div8
+	return;
+}
+
 /* Generate packet for driving both motors: send motor power
  * m1Pwr: Signed 8-bit motor power value, 0 to 127 is forward, -128 to -1 is reverse
  * buf: character buffer of at least five bytes for packet

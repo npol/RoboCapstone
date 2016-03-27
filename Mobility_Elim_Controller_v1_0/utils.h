@@ -21,11 +21,11 @@ typedef unsigned long long uint64_t;
 typedef signed long long int64_t;
 
 /* Warning/Error code buffers and flags */
-#define WARN_LOG_SIZE 64
+#define WARN_LOG_SIZE 12
 extern volatile uint16_t warn_log[WARN_LOG_SIZE];
 extern volatile uint8_t warn_log_ptr;
 extern volatile uint8_t warn_flag;
-#define ERR_LOG_SIZE 64
+#define ERR_LOG_SIZE 10
 extern volatile uint16_t err_log[ERR_LOG_SIZE];
 extern volatile uint8_t err_log_ptr;
 extern volatile uint8_t err_flag;
@@ -33,6 +33,7 @@ extern volatile uint8_t err_flag;
 
 uint8_t ascii2hex_byte(uint8_t high_char, uint8_t low_char);
 void hex2ascii_byte(uint8_t data, uint8_t *high_char, uint8_t *low_char);
+void hex2ascii_int(uint16_t data, uint8_t *char4, uint8_t *char3, uint8_t *char2, uint8_t *char1);
 uint8_t P1_get(uint8_t *buf);
 uint8_t P2_get(uint8_t *buf);
 uint8_t P3_get(uint8_t *buf);
@@ -57,6 +58,8 @@ void issue_warning(uint16_t warn_code);
 void issue_error(uint16_t err_code);
 uint8_t is_error(void);
 uint8_t is_warning(void);
+uint8_t error_dump(uint8_t *buf);
+uint8_t warning_dump(uint8_t *buf);
 
 #endif /* UTILS_H_ */
 
