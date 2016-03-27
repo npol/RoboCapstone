@@ -251,6 +251,7 @@ void led_P4_7_off(void){
 
 /* Log warning code */
 void issue_warning(uint16_t warn_code){
+	__disable_interrupt();
 	led_P5_6_on();
 	led_P5_7_off();
 	warn_flag = 1;
@@ -260,10 +261,13 @@ void issue_warning(uint16_t warn_code){
 		issue_error(ERR_TOO_MANY_WARNS);
 		warn_log_ptr = 0;
 	}
+	__enable_interrupt();
+	return;
 }
 
 /* Log error code */
 void issue_error(uint16_t err_code){
+	__disable_interrupt();
 	 led_P4_7_on();
 	 led_P5_7_off();
 	 err_flag = 1;
@@ -271,6 +275,8 @@ void issue_error(uint16_t err_code){
 	 if(err_log_ptr >= ERR_LOG_SIZE){
 		 err_log_ptr = 0;
 	 }
+	 __enable_interrupt();
+	 return;
 }
 
 /* Function for external checking of error status */
@@ -288,6 +294,7 @@ uint8_t is_warning(void){
  * returns 60, size of buffer
  */
 uint8_t error_dump(uint8_t *buf){
+	__disable_interrupt();
 	uint8_t i;
 	buf[0] = '#';
 	buf[1] = '0';
@@ -300,6 +307,7 @@ uint8_t error_dump(uint8_t *buf){
 		buf[(6*i+7)+4] = 13;	//CR+LF
 		buf[(6*i+7)+5] = 10;
 	}
+	__enable_interrupt();
 	return (6*i+7);
 }
 
@@ -308,6 +316,7 @@ uint8_t error_dump(uint8_t *buf){
  * returns 60, size of buffer
  */
 uint8_t warning_dump(uint8_t *buf){
+	__disable_interrupt();
 	uint8_t i;
 	buf[0] = '#';
 	buf[1] = '0';
@@ -320,16 +329,40 @@ uint8_t warning_dump(uint8_t *buf){
 		buf[(6*i+7)+4] = 13;	//CR+LF
 		buf[(6*i+7)+5] = 10;
 	}
+	__enable_interrupt();
 	return (6*i+7);
 }
 
 /* Clear warning log */
 void clear_warnings(void){
+	__disable_interrupt();
 	warn_log_ptr = 0;
 	uint8_t i = 0;
 	for(i=0; i < WARN_LOG_SIZE; i++){
 		warn_log[i] = 0;
 	}
+	warn_flag = 0;
+	//Clear warning light
+	led_P5_6_off();
+	if(!is_error()) led_P5_7_on();
+	__enable_interrupt();
+	return;
+}
+
+/* Clear error log */
+void clear_errors(void){
+	__disable_interrupt();
+	err_log_ptr = 0;
+	uint8_t i = 0;
+	for(i=0; i < ERR_LOG_SIZE; i++){
+		err_log[i] = 0;
+	}
+	err_flag = 0;
+	//Clear error light
+	led_P4_7_off();
+	issue_warning(WARN_ERROR_LOG_CLEARED);
+	//issue warning that errors were cleared
+	__enable_interrupt();
 	return;
 }
 
@@ -341,15 +374,15 @@ uint8_t print_mon_analog_value(uint16_t *mon_value, uint8_t *buf){
 	buf[0] = '0';
 	buf[1] = 'x';
 	hex2ascii_int(mon_value[0], &buf[2], &buf[3], &buf[4], &buf[5]);
-	buf[2] = '\t';
+	buf[6] = '\t';
 	//Minimum
-	buf[3] = '0';
-	buf[4] = 'x';
-	hex2ascii_int(mon_value[1], &buf[5], &buf[6], &buf[7], &buf[8]);
-	buf[9] = '\t';
+	buf[7] = '0';
+	buf[8] = 'x';
+	hex2ascii_int(mon_value[1], &buf[9], &buf[10], &buf[11], &buf[12]);
+	buf[13] = '\t';
 	//Maximum
-	buf[10] = '0';
-	buf[11] = 'x';
-	hex2ascii_int(mon_value[2], &buf[12], &buf[13], &buf[14], &buf[15]);
-	return 16;
+	buf[14] = '0';
+	buf[15] = 'x';
+	hex2ascii_int(mon_value[2], &buf[16], &buf[17], &buf[18], &buf[19]);
+	return 20;
 }

@@ -45,6 +45,7 @@
 #define ERR_RST_PERF			0x001E
 #define WARN_RST_PMM_KEY		0x001F
 #define WARN_TEST				0x0020
+#define WARN_ERROR_LOG_CLEARED 0x0021
 
 /* Application specific Warnings */
 #define WARN_RC_TX_BUF_FULL1	0x8000
@@ -102,5 +103,6 @@
 #define WARN_RC_MBATT_L_WARN		0x8221
 #define WARN_RC_TEMP_WARN			0x8222
 #define WARN_RC_TEMP2_WARN			0x8223
+
 
 #endif /* ERR_WARN_CODES_H_ */

@@ -71,8 +71,8 @@ typedef enum  {RC_WAIT,
 				ERR_STAT_REQ,
 				CHECK_STAT_REQ} rc_state_t;
 volatile rc_state_t rcCurrState = RC_WAIT;
-#define WAIT_THRESH 50000
-#define RC_RUN_CHECK_INTERVAL 1000
+#define WAIT_THRESH 10000
+#define RC_RUN_CHECK_INTERVAL 500
 volatile uint8_t rc_check_ran_once = 0;
 
 /* Struct to request asynchronous packet transaction */
@@ -198,6 +198,7 @@ int main(void) {
 	drill_setup();
 	stepper_setup();
 	roboclaw_setup();
+	monitor_setup();
     // Enable Interrupts
     __bis_SR_register(GIE);
     while(1)
@@ -230,6 +231,7 @@ void roboclaw_task(void){
 	switch(rcCurrState){
 	case RC_WAIT:
 		//State action: nothing
+		led_P1_0_off();
 		//State transition
 		if(timer_TA2_tick){						//T_DRV2
 			timer_TA2_tick = 0;
@@ -240,6 +242,7 @@ void roboclaw_task(void){
 			rcCurrState = SEND_PCKT_REQ;
 		} else if(run_check_flag){				//T_DRV22
 			rcCurrState = SEND_MBATT_REQ;
+			led_P1_0_on();
 		} else {
 			rcCurrState = RC_WAIT;				//T_DRV49
 		}
@@ -554,7 +557,7 @@ void roboclaw_task(void){
 		//State action
 		wait_cntr++;
 		//State transition
-		if(is_rc_uart_rx_ndata_ready() == 3){
+		if(is_rc_uart_rx_ndata_ready() == 4){
 			rcCurrState = CHECK_STAT_REQ;			//T_DRV47
 		} else if(wait_cntr > WAIT_THRESH){
 			rcCurrState = ERR_STAT_REQ;				//T_DRV45
@@ -571,7 +574,7 @@ void roboclaw_task(void){
 	case CHECK_STAT_REQ:
 		//State action
 		//Get data from status request
-		pckt_size = rc_uart_get_string(buf,3);
+		pckt_size = rc_uart_get_string(buf,4);
 		if(pckt_size == 0){
 			issue_warning(WARN_RC_SM_STAT_DATA_FAIL);
 		}
@@ -698,7 +701,7 @@ void monitor_task(void){
 		ADC12MCTL0 = ADC12INCH_9;		//A9
 		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
 		//State transition
-		monCurrState = WAIT_ADC2;		//T_MON11
+		monCurrState = WAIT_ADC9;		//T_MON11
 		break;
 	case WAIT_ADC9:
 		//State action: nothing
@@ -721,6 +724,8 @@ void monitor_task(void){
 		}
 		monitor_data.vsense_12V[3] = 1;
 		ADC12CTL0 &= ~ADC12ENC;			//Disable conversions to change channel
+		while(REFCTL0 & REFGENBUSY);
+		REFCTL0 = REFMSTR + REFVSEL_0 + REFON;
 		ADC12CTL0 &= ~ADC12REF2_5V;		//1.5V reference
 		ADC12MCTL0 = ADC12INCH_10 + ADC12SREF_1;		//A10, REF+
 		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
@@ -748,6 +753,8 @@ void monitor_task(void){
 		}
 		monitor_data.mcu_temp[3] = 1;
 		ADC12CTL0 &= ~ADC12ENC;			//Disable conversions to change channel
+		while(REFCTL0 & REFGENBUSY);
+		REFCTL0 = REFMSTR + REFVSEL_2 + REFON;
 		ADC12CTL0 |= ADC12REF2_5V;		//2.5V reference
 		ADC12MCTL0 = ADC12INCH_11 + ADC12SREF_1;		//A11, VREF+
 		ADC12CTL0 |= ADC12SC+ADC12ENC;	//Start conversion
@@ -957,6 +964,9 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"warnclear",9)==0) && (debug_cmd_buf_ptr == 9)){
 			//>warnclear
 			clear_warnings();
+		} else if((strncmp(debug_cmd_buf,"errclear",8)==0) && (debug_cmd_buf_ptr == 8)){
+			//>errclear
+			clear_errors();
 		} else if((strncmp(debug_cmd_buf,"mon drill",9)==0) && (debug_cmd_buf_ptr == 9)){
 			//>mon drill
 			response_size = print_mon_analog_value(monitor_data.drill_current, response_buf);
@@ -974,16 +984,17 @@ void debug_task(void){
 				response_size = 3;
 			}
 			dbg_uart_send_string(response_buf,response_size);
-		} else if((strncmp(debug_cmd_buf,"mon m1I",7)==7) && (debug_cmd_buf_ptr == 7)){
+		} else if((strncmp(debug_cmd_buf,"mon m1I",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//>mon m1I
 			response_size = print_mon_analog_value(monitor_data.m1_current, response_buf);
 			dbg_uart_send_string(response_buf,response_size);
-		} else if((strncmp(debug_cmd_buf,"mon m2I",7)==7) && (debug_cmd_buf_ptr == 7)){
+		} else if((strncmp(debug_cmd_buf,"mon m2I",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//>mon m2I
 			response_size = print_mon_analog_value(monitor_data.m2_current, response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon mcu temp",12)==0) && (debug_cmd_buf_ptr == 12)){
 			//>mon mcu temp
+			//TODO: why is stuck at 0 or close to 0
 			response_size = print_mon_analog_value(monitor_data.mcu_temp, response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon rc lbatt",12)==0) && (debug_cmd_buf_ptr == 12)){
@@ -996,7 +1007,10 @@ void debug_task(void){
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon rc status",13)==0) && (debug_cmd_buf_ptr == 13)){
 			//>mon rc status
-			response_size = print_mon_analog_value(monitor_data.rc_status, response_buf);
+			response_buf[0] = '0';
+			response_buf[1] = 'x';
+			hex2ascii_int(monitor_data.rc_status, &response_buf[2], &response_buf[3], &response_buf[4], &response_buf[5]);
+			response_size = 6;
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon rc temp",11)==0) && (debug_cmd_buf_ptr == 11)){
 			//>mon rc temp
@@ -1008,6 +1022,7 @@ void debug_task(void){
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon 3V3",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//>mon 3V3
+			//TODO: why is stuck at 0xFFF
 			response_size = print_mon_analog_value(monitor_data.vsense_3V3, response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon 5V0",7)==0) && (debug_cmd_buf_ptr == 7)){
