@@ -77,7 +77,8 @@ volatile rc_state_t rcCurrState = RC_WAIT;
 /* Struct to request asynchronous packet transaction */
 #define RC_REQ_SIZE 64
 struct RC_async_request_struct{
-	uint8_t rc_request_flag;	//Set to request packet transmission
+	uint8_t rc_request_flag;	//Set to request packet transmission, SW must clear
+	uint8_t rc_data_ready_flag;	//Set when data is ready to be read
 	uint8_t tx_bytes[RC_REQ_SIZE];	//Bytes to send
 	uint8_t rx_bytes[RC_REQ_SIZE];	//Bytes recieved
 	uint8_t tx_nbytes;				//Number of bytes to send
@@ -85,6 +86,7 @@ struct RC_async_request_struct{
 };
 struct RC_async_request_struct RC_async_request = {
 	.rc_request_flag = 0,
+	.rc_data_ready_flag = 0,
 	.tx_bytes = {0},
 	.rx_bytes = {0},
 	.tx_nbytes = 0,
@@ -183,7 +185,7 @@ void roboclaw_task(void){
 	case SEND_PCKT_REQ:
 		//State action
 		wait_cntr = 0;
-		rc_uart_send_string(buf, pckt_size);	//Send packet to UART
+		rc_uart_send_string(RC_async_request.tx_bytes, RC_async_request.tx_nbytes);	//Send packet to UART
 		//State transition
 		rcCurrState = WAIT_PCKT_REQ;			//T_DRV5
 		break;
@@ -202,8 +204,10 @@ void roboclaw_task(void){
 	case GET_PCKT_DATA:
 		//State action
 		pckt_size = rc_uart_get_string(RC_async_request.rx_bytes,RC_async_request.rx_nbytes);
+		RC_async_request.rc_data_ready_flag = 1;
+		//TODO: remove
 		RC_async_request.rc_request_flag = 0;
-		//TODO: indicate to task that data is ready to be picked up, but don't clear request flag
+		//END TODO
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV9
 		break;
@@ -626,6 +630,7 @@ void debug_task(void){
 			RC_async_request.tx_nbytes = driveM1Power(speed,RC_async_request.tx_bytes);
 			RC_async_request.rx_nbytes = 1;
 			RC_async_request.rc_request_flag = 1;
+			//TODO: allow other tasks to run while waiting for data
 		} else if((strncmp(debug_cmd_buf,"rc m2 ",6)==0) && (debug_cmd_buf_ptr == 8)){
 			//>rc m2 <hex value>
 			//>rc m2 2A
@@ -634,6 +639,7 @@ void debug_task(void){
 			RC_async_request.tx_nbytes = driveM2Power(speed,RC_async_request.tx_bytes);
 			RC_async_request.rx_nbytes = 1;
 			RC_async_request.rc_request_flag = 1;
+			//TODO: allow other tasks to run while waiting for data
 /*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
 			//can tx 0x00
 			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
@@ -720,6 +726,7 @@ __interrupt void USCIA1_ISR(void){
 			issue_warning(WARN_RC_RX_BUF_FULL);
 	} else if((UCA1IE & UCTXIE) && (UCA1IFG & UCTXIFG)){	//UART Txbuf ready interrupt
 		//Load data and clear interrupt
+		volatile uint8_t temp = RC_UART_data.tx_bytes[RC_UART_data.tx_tail];
 		UCA1TXBUF = RC_UART_data.tx_bytes[RC_UART_data.tx_tail];
 		RC_UART_data.tx_tail++;
 		//Wraparound condition
