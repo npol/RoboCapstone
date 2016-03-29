@@ -16,7 +16,7 @@
 
 #include <msp430.h>
 #include "utils.h"
-#include "string.h"
+//#include "string.h"
 
 #define RC_ADDR 0x80
 

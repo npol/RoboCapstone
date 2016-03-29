@@ -13,7 +13,7 @@
 
 #include "roboclaw.h"
 
-const uint8_t rc_fw_ver[27] = "USB Roboclaw 2x60a v4.1.13";
+uint8_t rc_fw_ver[27] = "USB Roboclaw 2x60a v4.1.13";
 
 void roboclaw_setup(void){
 	//Setup TA2 to fire at intervals for triggering encoders and check routines

@@ -11,7 +11,7 @@
  */
 #include <msp430.h>
 #include "utils.h"
-#include <string.h>
+//#include <string.h>
 #include "clock_f5.h"
 #include "dbg_uart_uscia0.h"
 #include "roboclaw.h"
@@ -27,6 +27,11 @@ void reset_isr(void);
 #define DEBUG_RESPONSE_BUF_SIZE 250
 uint8_t debug_cmd_buf[DEBUG_CMD_BUF_SIZE];
 uint8_t debug_cmd_buf_ptr = 0;
+
+//Persistent command codes
+#define PCMD_NONE	0x00
+#define PCMD_RC_M1 0x01
+#define PCMD_RC_M2 0x02
 /** END Debug task macros and globals **/
 
 /** Warning/Error code buffers and flags **/
@@ -84,6 +89,7 @@ struct RC_async_request_struct{
 	uint8_t rx_bytes[RC_REQ_SIZE];	//Bytes recieved
 	uint8_t tx_nbytes;				//Number of bytes to send
 	uint8_t rx_nbytes;				//Number of bytes to recieve
+	uint8_t error;					//flag to indicate transaction error
 };
 struct RC_async_request_struct RC_async_request = {
 	.rc_request_flag = 0,
@@ -91,7 +97,8 @@ struct RC_async_request_struct RC_async_request = {
 	.tx_bytes = {0},
 	.rx_bytes = {0},
 	.tx_nbytes = 0,
-	.rx_nbytes = 0
+	.rx_nbytes = 0,
+	.error = 0
 };
 /* Set on TA2 interrupt */
 volatile uint8_t timer_TA2_tick = 0;
@@ -174,6 +181,9 @@ typedef enum  {MON_WAIT,
 				SEND_MON_PCKT} mon_state_t;
 volatile mon_state_t monCurrState = MON_WAIT;
 #define MON_CNT_THRESH 100
+
+/** END Monioring task globals **/
+
 /** Main Loop **/
 
 int main(void) {
@@ -206,13 +216,6 @@ int main(void) {
         debug_task();
         roboclaw_task();
         monitor_task();
-        /*
-        if(is_rc_uart_rx_data_ready()){
-        	uint8_t rx_byte = rc_uart_get_byte();
-        	dbg_uart_send_byte(rx_byte);
-        	rc_uart_send_byte(rx_byte);
-        }
-        */
     }
 }
 
@@ -262,6 +265,8 @@ void roboclaw_task(void){
 		//State action
 		wait_cntr = 0;
 		rc_uart_send_string(RC_async_request.tx_bytes, RC_async_request.tx_nbytes);	//Send packet to UART
+		RC_async_request.rc_data_ready_flag = 0;
+		RC_async_request.error = 0;
 		//State transition
 		rcCurrState = WAIT_PCKT_REQ;			//T_DRV5
 		break;
@@ -281,15 +286,13 @@ void roboclaw_task(void){
 		//State action
 		pckt_size = rc_uart_get_string(RC_async_request.rx_bytes,RC_async_request.rx_nbytes);
 		RC_async_request.rc_data_ready_flag = 1;
-		//TODO: remove
-		RC_async_request.rc_request_flag = 0;
-		//END TODO
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV9
 		break;
 	case PCKT_ERR:
 		//State action
-		RC_async_request.rc_request_flag = 0;
+		RC_async_request.rc_data_ready_flag = 0;
+		RC_async_request.error = 1;
 		issue_warning(WARN_RC_SM_ASYNC_PCKT_FAIL);
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV10
@@ -837,11 +840,14 @@ void monitor_task(void){
 
 /* Process debug command functions */
 void debug_task(void){
+	static uint8_t persistent_cmd = 0;	//Code of command to continue running while other tasks run
+	static uint8_t pcmd_data0 = 0;		//Storage for persistent commands
+	static uint8_t pcmd_data1 = 0;
 	uint8_t debug_cmd_ready = 0;
 	uint8_t response_buf[DEBUG_RESPONSE_BUF_SIZE];
 	uint8_t response_size = 0;
 	//Check if serial data is ready to be formed into a command
-	if(is_dbg_uart_rx_data_ready()){
+	if(is_dbg_uart_rx_data_ready() && !persistent_cmd){
 		uint8_t rx_byte = dbg_uart_get_byte();
 
 		//Enter (CR) indicates command is complete
@@ -857,12 +863,106 @@ void debug_task(void){
 			} else {
 				issue_warning(WARN_DBG_BUFF_OVERRUN);
 			}
-
 		}
-
+	}
+	//If command needs to continue running as other tasks run, do actions here
+	if(persistent_cmd){
+		switch(persistent_cmd){
+		case PCMD_RC_M1:
+			if(!pcmd_data1){	//Roboclaw Command has not been sent yet
+				if(RC_async_request.rc_request_flag){	//Wait for open request buffer
+					break;
+				} else {	//Buffer is open
+					RC_async_request.tx_nbytes = driveM1Power(pcmd_data0,RC_async_request.tx_bytes);
+					RC_async_request.rx_nbytes = 1;
+					RC_async_request.rc_request_flag = 1;
+					pcmd_data1 = 1;	//Flag to indicate command has been sent
+					break;
+				}
+			} else if(RC_async_request.rc_data_ready_flag){
+				//Check recieved byte
+				if(RC_async_request.error){	//Packet timeout
+					response_buf[0] = 'e';
+					response_buf[1] = 'r';
+					response_buf[2] = 'r';
+					response_size = 3;
+					dbg_uart_send_string(response_buf,response_size);
+				} else	if(RC_async_request.rx_bytes[0] == 0xFF){	//Successful packet transmission
+					response_buf[0] = 'a';
+					response_buf[1] = 'c';
+					response_buf[2] = 'k';
+					response_size = 3;
+					dbg_uart_send_string(response_buf,response_size);
+				} else {	//Bad data
+					response_buf[0] = 'b';
+					response_buf[1] = 'a';
+					response_buf[2] = 'd';
+					response_size = 3;
+					dbg_uart_send_string(response_buf,response_size);
+				}
+				//Release request datastructure
+				RC_async_request.rc_data_ready_flag = 0;
+				RC_async_request.rc_request_flag = 0;
+				persistent_cmd = PCMD_NONE;
+				pcmd_data1 = 0;	//clear data stores
+				pcmd_data0 = 0;
+			} //Else wait for data to be ready
+			break;
+		case PCMD_RC_M2:
+			if(!pcmd_data1){	//Roboclaw Command has not been sent yet
+				if(RC_async_request.rc_request_flag){	//Wait for open request buffer
+					break;
+				} else {	//Buffer is open
+					RC_async_request.tx_nbytes = driveM2Power(pcmd_data0,RC_async_request.tx_bytes);
+					RC_async_request.rx_nbytes = 1;
+					RC_async_request.rc_request_flag = 1;
+					pcmd_data1 = 1;	//Flag to indicate command has been sent
+					break;
+				}
+			} else if(RC_async_request.rc_data_ready_flag){
+				//Check recieved byte
+				if(RC_async_request.error){	//Packet timeout
+					response_buf[0] = 'e';
+					response_buf[1] = 'r';
+					response_buf[2] = 'r';
+					response_size = 3;
+					dbg_uart_send_string(response_buf,response_size);
+				} else	if(RC_async_request.rx_bytes[0] == 0xFF){	//Successful packet transmission
+					response_buf[0] = 'a';
+					response_buf[1] = 'c';
+					response_buf[2] = 'k';
+					response_size = 3;
+					dbg_uart_send_string(response_buf,response_size);
+				} else {	//Bad data
+					response_buf[0] = 'b';
+					response_buf[1] = 'a';
+					response_buf[2] = 'd';
+					response_size = 3;
+					dbg_uart_send_string(response_buf,response_size);
+				}
+				//Release request datastructure
+				RC_async_request.rc_data_ready_flag = 0;
+				RC_async_request.rc_request_flag = 0;
+				persistent_cmd = PCMD_NONE;
+				pcmd_data1 = 0;	//clear data stores
+				pcmd_data0 = 0;
+			} //Else wait for data to be ready
+			break;
+		default:
+			persistent_cmd = 0;
+			break;
+		}
+		//When done with command, return terminal to user
+		if(!persistent_cmd){
+			dbg_uart_send_byte(13);		//CR
+			dbg_uart_send_byte(10);		//Line feed
+			dbg_uart_send_byte('>');	//Terminal prompt
+			debug_cmd_ready = 0;
+			debug_cmd_buf_ptr = 0;
+		}
 	}
 	//Process command
-	if(debug_cmd_ready){
+	if(!persistent_cmd && debug_cmd_ready){
 		if(debug_cmd_buf_ptr == 0){
 			//No command, do nothing
 		} else if((strncmp(debug_cmd_buf,"led1 on",6)==0) && (debug_cmd_buf_ptr == 7)){
@@ -994,7 +1094,6 @@ void debug_task(void){
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon mcu temp",12)==0) && (debug_cmd_buf_ptr == 12)){
 			//>mon mcu temp
-			//TODO: why is stuck at 0 or close to 0
 			response_size = print_mon_analog_value(monitor_data.mcu_temp, response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon rc lbatt",12)==0) && (debug_cmd_buf_ptr == 12)){
@@ -1022,7 +1121,6 @@ void debug_task(void){
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon 3V3",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//>mon 3V3
-			//TODO: why is stuck at 0xFFF
 			response_size = print_mon_analog_value(monitor_data.vsense_3V3, response_buf);
 			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"mon 5V0",7)==0) && (debug_cmd_buf_ptr == 7)){
@@ -1075,20 +1173,14 @@ void debug_task(void){
 			//>rc m1 <hex value>
 			//>rc m1 2A
 			uint8_t speed = ascii2hex_byte(debug_cmd_buf[6],debug_cmd_buf[7]);
-			while(RC_async_request.rc_request_flag);	//Wait for open request buffer
-			RC_async_request.tx_nbytes = driveM1Power(speed,RC_async_request.tx_bytes);
-			RC_async_request.rx_nbytes = 1;
-			RC_async_request.rc_request_flag = 1;
-			//TODO: allow other tasks to run while waiting for data
+			pcmd_data0 = speed;
+			persistent_cmd = PCMD_RC_M1;
 		} else if((strncmp(debug_cmd_buf,"rc m2 ",6)==0) && (debug_cmd_buf_ptr == 8)){
 			//>rc m2 <hex value>
 			//>rc m2 2A
 			uint8_t speed = ascii2hex_byte(debug_cmd_buf[6],debug_cmd_buf[7]);
-			while(RC_async_request.rc_request_flag);	//Wait for open request buffer
-			RC_async_request.tx_nbytes = driveM2Power(speed,RC_async_request.tx_bytes);
-			RC_async_request.rx_nbytes = 1;
-			RC_async_request.rc_request_flag = 1;
-			//TODO: allow other tasks to run while waiting for data
+			pcmd_data0 = speed;
+			persistent_cmd = PCMD_RC_M2;
 /*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
 			//can tx 0x00
 			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
@@ -1102,11 +1194,13 @@ void debug_task(void){
 		} else {
 			dbg_uart_send_string("Invalid Command",15);
 		}
-		dbg_uart_send_byte(13);		//CR
-		dbg_uart_send_byte(10);		//Line feed
-		dbg_uart_send_byte('>');	//Terminal prompt
 		debug_cmd_ready = 0;
-		debug_cmd_buf_ptr = 0;
+		if(!persistent_cmd){
+			dbg_uart_send_byte(13);		//CR
+			dbg_uart_send_byte(10);		//Line feed
+			dbg_uart_send_byte('>');	//Terminal prompt
+			debug_cmd_buf_ptr = 0;
+		}
 	}
 }
 

@@ -63,6 +63,7 @@ uint8_t warning_dump(uint8_t *buf);
 void clear_warnings(void);
 void clear_errors(void);
 uint8_t print_mon_analog_value(uint16_t *mon_value, uint8_t *buf);
+uint8_t strncmp(uint8_t *s1, uint8_t *s2, uint8_t n);
 
 #endif /* UTILS_H_ */
 

@@ -24,6 +24,7 @@ uint8_t debug_cmd_buf_ptr = 0;
 /** END Debug task macros and globals **/
 
 //#define BLINK
+//#define BLINK_MECH
 //#define CLK_TEST
 //#define DBG_UART_TX_TEST
 #define DBG_UART_TEST
@@ -35,6 +36,27 @@ int main(void) {
 	for(;;) {
 		volatile unsigned int i;	// volatile to prevent optimization
 		P1OUT ^= 0x01;				// Toggle P1.0 using exclusive-OR
+		i = 10000;					// SW Delay
+		do i--;
+		while(i != 0);
+	}
+	return 0;
+}
+#endif
+
+#ifdef BLINK_MECH
+int main(void) {
+	WDTCTL = WDTPW | WDTHOLD;		// Stop watchdog timer
+	P1DIR |= 0x01;					// Set P1.0 to output direction
+	P2DIR |= BIT2;
+	P7DIR |= BIT7;
+	P5DIR |= BIT6;
+	for(;;) {
+		volatile unsigned int i;	// volatile to prevent optimization
+		P1OUT ^= 0x01;				// Toggle P1.0 using exclusive-OR
+		P2OUT ^= BIT2;
+		P7OUT ^= BIT7;
+		P5OUT ^= BIT6;
 		i = 10000;					// SW Delay
 		do i--;
 		while(i != 0);

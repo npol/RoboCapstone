@@ -386,3 +386,19 @@ uint8_t print_mon_analog_value(uint16_t *mon_value, uint8_t *buf){
 	hex2ascii_int(mon_value[2], &buf[16], &buf[17], &buf[18], &buf[19]);
 	return 20;
 }
+
+/* Compare two strings for equality
+ * s1: string 1
+ * s2: string 2
+ * n: number of bytes
+ * From http://www.opensource.apple.com/source/Libc/Libc-167/gen.subproj/ppc.subproj/strncmp.c
+ */
+uint8_t strncmp(uint8_t *s1, uint8_t *s2, uint8_t n){
+	for(;n > 0; s1++, s2++, --n){
+		if(*s1 != *s2)
+			return 1;
+		else if(*s1 == '\0')
+			return 0;
+	}
+	return 0;
+}
