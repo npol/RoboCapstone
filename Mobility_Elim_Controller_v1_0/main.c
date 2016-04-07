@@ -182,12 +182,21 @@ typedef enum  {MON_WAIT,
 volatile mon_state_t monCurrState = MON_WAIT;
 #define MON_CNT_THRESH 100
 
+//Flag to indicate if safe to operate drill and stepper
+volatile uint8_t sys_ok = 0;
+#define ESTOP_OVERRIDE
+
 /** END Monioring task globals **/
 
 /** Main Loop **/
 
 int main(void) {
 	WDTCTL = WDTPW + WDTHOLD;   // Stop watchdog timer
+#ifdef ESTOP_OVERRIDE
+	sys_ok = 1;
+#else
+	sys_ok = 0;
+#endif
 	P1DIR |= BIT0;	//Debug LED1
 	P2DIR |= BIT2;	//Debug LED2
 	P7DIR |= BIT7;	//Debug LED3
@@ -214,8 +223,9 @@ int main(void) {
     while(1)
     {
         debug_task();
-        roboclaw_task();
         monitor_task();
+        roboclaw_task();
+        drill_task();
     }
 }
 
@@ -616,6 +626,7 @@ void monitor_task(void){
 	uint8_t pckt_size = 0;				//Size of transmitted packet
 	uint8_t buf[16];					//Buffer for transmitted/recieved packet
 	uint16_t conversion;
+	//TODO: Set/clear sys_ok
 	switch(monCurrState){
 	case MON_WAIT:
 		//State action
@@ -1140,21 +1151,33 @@ void debug_task(void){
 			hex2ascii_int((uint16_t)(enc2_count), &response_buf[17], &response_buf[18], &response_buf[19], &response_buf[20]);
 			response_size = 21;
 			dbg_uart_send_string(response_buf,response_size);
-		} else if((strncmp(debug_cmd_buf,"drill en",8)==0) && (debug_cmd_buf_ptr == 8)){
-			//>drill en
+		} else if((strncmp(debug_cmd_buf,"drill man en",12)==0) && (debug_cmd_buf_ptr == 12)){
+			//>drill man en
 			drill_enable();
-		} else if((strncmp(debug_cmd_buf,"drill dis",9)==0) && (debug_cmd_buf_ptr == 9)){
-			//>drill dis
+		} else if((strncmp(debug_cmd_buf,"drill man dis",13)==0) && (debug_cmd_buf_ptr == 13)){
+			//>drill man dis
 			drill_disable();
+		} else if((strncmp(debug_cmd_buf,"drill man dir ",13)==0) && (debug_cmd_buf_ptr == 15)){
+			//>drill man dir <direction>
+			//>drill man dir 0
+			if(debug_cmd_buf[14] == '0')
+				drill_brake();
+			if(debug_cmd_buf[14] == '1')
+				drill_cw();
+			if(debug_cmd_buf[14] == '2')
+				drill_ccw();
+		} else if((strncmp(debug_cmd_buf,"drill off",9)==0) && (debug_cmd_buf_ptr == 9)){
+			//>drill dis
+			drill_request = DRILL_REQ_OFF;
 		} else if((strncmp(debug_cmd_buf,"drill dir ",9)==0) && (debug_cmd_buf_ptr == 11)){
 			//>drill dir <direction>
 			//>drill dir 0
 			if(debug_cmd_buf[10] == '0')
-				drill_brake();
+				drill_request = DRILL_REQ_BRAKE;
 			if(debug_cmd_buf[10] == '1')
-				drill_cw();
+				drill_request = DRILL_REQ_CW;
 			if(debug_cmd_buf[10] == '2')
-				drill_ccw();
+				drill_request = DRILL_REQ_CCW;
 		} else if((strncmp(debug_cmd_buf,"step",4)==0) && (debug_cmd_buf_ptr == 4)){
 			//>step
 			stepper_step_single();

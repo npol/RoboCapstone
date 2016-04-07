@@ -16,11 +16,30 @@
 #include <msp430.h>
 #include "utils.h"
 
+typedef enum  {DRILL_INIT,
+				DRILL_WAIT,
+				DRILL_SET_DIR,
+				DRILL_RUN,
+				DRILL_STOP,
+				DRILL_ERR} drill_state_t;
+
+typedef enum  {DRILL_REQ_NONE,
+				DRILL_REQ_OFF,
+				DRILL_REQ_CW,
+				DRILL_REQ_CCW,
+				DRILL_REQ_BRAKE} drill_req_t;
+#define DRILL_TIMEOUT 50000
+extern volatile uint8_t sys_ok;
+extern volatile drill_req_t drill_request;
+
+
+
 void drill_setup(void);
 void drill_enable(void);
 void drill_disable(void);
 void drill_cw(void);
 void drill_ccw(void);
 void drill_brake(void);
+void drill_task(void);
 
 #endif /* DRILL_H_ */
