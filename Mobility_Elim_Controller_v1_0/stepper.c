@@ -15,7 +15,7 @@
 void stepper_setup(void){
 	P1DIR |= STEP_PIN;
 	P7DIR |= BIT1+BIT2;
-	P7OUT &= ~(BIT1+BIT2);
+	P7OUT |= (BIT1+BIT2);
 	return;
 }
 
@@ -36,12 +36,12 @@ void stepper_enable(uint8_t direction){
 		P7OUT &= ~BIT1;
 	}
 	//Enable
-	P7OUT |= BIT2;
+	P7OUT &= ~BIT2;
 	return;
 }
 
 void stepper_disable(void){
-	P7OUT &= ~BIT2;
+	P7OUT |= BIT2;
 	return;
 }
 
