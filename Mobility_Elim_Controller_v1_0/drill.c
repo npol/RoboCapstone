@@ -20,7 +20,7 @@ volatile drill_req_t drill_request = DRILL_REQ_NONE;
  *
  */
 void drill_task(void){
-	static uint16_t drill_timer = 0;
+	static uint32_t drill_timer = 0;
 	switch(drillCurrState){
 	case DRILL_INIT:
 		//State acton
@@ -43,14 +43,14 @@ void drill_task(void){
 		//State action
 		if(drill_request == DRILL_REQ_OFF){
 			drill_disable();
-			drill_request == DRILL_REQ_NONE;
+			drill_request = DRILL_REQ_NONE;
 		} else if(drill_request == DRILL_REQ_CW){
 			drill_disable();
 			drill_cw();
 			drill_enable();
 		} else if(drill_request == DRILL_REQ_CCW){
 			drill_disable();
-			drill_cw();
+			drill_ccw();
 			drill_enable();
 		} else if(drill_request == DRILL_REQ_BRAKE){
 			drill_disable();
@@ -59,7 +59,7 @@ void drill_task(void){
 		} else {
 			issue_warning(WARN_ILLEGAL_DRILL_REQUEST);
 			drill_disable();
-			drill_request == DRILL_REQ_NONE;
+			drill_request = DRILL_REQ_NONE;
 		}
 		drill_timer = 0;
 		//State transition
@@ -67,7 +67,7 @@ void drill_task(void){
 			drillCurrState = DRILL_ERR;
 		} if(drill_request == DRILL_REQ_NONE){
 			drillCurrState = DRILL_WAIT;
-		} else if((drill_request == DRILL_REQ_CW) || (drill_request == DRILL_REQ_CCW)){
+		} else if((drill_request == DRILL_REQ_CW) || (drill_request == DRILL_REQ_CCW) || (drill_request == DRILL_REQ_BRAKE)){
 			drillCurrState = DRILL_RUN;
 			drill_request = DRILL_REQ_NONE;
 		} else {

@@ -224,7 +224,7 @@ int main(void) {
     {
         debug_task();
         monitor_task();
-        roboclaw_task();
+        //roboclaw_task();
         drill_task();
     }
 }

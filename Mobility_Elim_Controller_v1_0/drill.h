@@ -28,7 +28,7 @@ typedef enum  {DRILL_REQ_NONE,
 				DRILL_REQ_CW,
 				DRILL_REQ_CCW,
 				DRILL_REQ_BRAKE} drill_req_t;
-#define DRILL_TIMEOUT 50000
+#define DRILL_TIMEOUT 1000000
 extern volatile uint8_t sys_ok;
 extern volatile drill_req_t drill_request;
 
