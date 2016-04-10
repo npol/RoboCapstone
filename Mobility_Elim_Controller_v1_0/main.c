@@ -226,6 +226,7 @@ int main(void) {
         monitor_task();
         //roboclaw_task();
         drill_task();
+        stepper_task();
     }
 }
 
@@ -1239,6 +1240,22 @@ __interrupt void TIMER2_A0_ISR(void){
 	timer_TA2_tick = 1;
 }
 
+/* Timer0 A0 interrupt service routine
+ * Keep track of step counts and stop when reached setpoint
+ */
+#pragma vector=TIMER0_A0_VECTOR
+__interrupt void TIMER0_A0_ISR(void){
+	if(step_direction){	//CCW
+		step_position++;
+	} else {
+		step_position--;
+	}
+	//Check if reached setpoint.  If so, notify SM
+	if(step_position == step_setpoint){
+		TA0CTL &= ~MC_3;	//Timer off
+		step_run_done = 1;
+	}
+}
 
 /* Debug UART USCIA0 Interrupt Handler
  * UART Rx: Recieves incoming bytes from debug channel, puts into Debug UART datastructure
