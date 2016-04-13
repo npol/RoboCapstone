@@ -224,7 +224,7 @@ int main(void) {
     {
         debug_task();
         monitor_task();
-        //roboclaw_task();
+        roboclaw_task();
         drill_task();
         stepper_task();
     }
@@ -1179,9 +1179,15 @@ void debug_task(void){
 				drill_request = DRILL_REQ_CW;
 			if(debug_cmd_buf[10] == '2')
 				drill_request = DRILL_REQ_CCW;
-		} else if((strncmp(debug_cmd_buf,"step",4)==0) && (debug_cmd_buf_ptr == 4)){
-			//>step
-			stepper_step_single();
+		//} else if((strncmp(debug_cmd_buf,"step",4)==0) && (debug_cmd_buf_ptr == 4)){
+		} else if((strncmp(debug_cmd_buf,"s",1)==0) && (debug_cmd_buf_ptr == 1)){
+			//>st+p
+			uint8_t i = 0;//TODO: remove before flight
+			uint16_t j = 0;
+			for(i=0; i < 100; i++){
+				stepper_step_single();
+				for(j=0; j < 10000; j++);
+			}
 		} else if((strncmp(debug_cmd_buf,"step cw",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//>step cw
 			stepper_enable(0);
@@ -1197,13 +1203,15 @@ void debug_task(void){
 			//>rc m1 <hex value>
 			//>rc m1 2A
 			uint8_t speed = ascii2hex_byte(debug_cmd_buf[6],debug_cmd_buf[7]);
-			pcmd_data0 = speed;
+			pcmd_data0 = speed;	//Motor velocity (signed 8-bit)
+			pcmd_data1 = 0;		//Flag to indicate roboclaw command has been sent
 			persistent_cmd = PCMD_RC_M1;
 		} else if((strncmp(debug_cmd_buf,"rc m2 ",6)==0) && (debug_cmd_buf_ptr == 8)){
 			//>rc m2 <hex value>
 			//>rc m2 2A
 			uint8_t speed = ascii2hex_byte(debug_cmd_buf[6],debug_cmd_buf[7]);
-			pcmd_data0 = speed;
+			pcmd_data0 = speed;	//Motor velocity (signed 8-bit)
+			pcmd_data1 = 0;		//Flag to indicate roboclaw command has been sent
 			persistent_cmd = PCMD_RC_M2;
 /*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
 			//can tx 0x00

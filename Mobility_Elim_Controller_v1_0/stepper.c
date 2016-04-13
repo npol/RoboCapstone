@@ -49,7 +49,7 @@ typedef enum  {STEP_WAIT_HOME,
 				STEP_START_MOVE,
 				STEP_RUN_MOVE,
 				STEP_ERROR} step_state_t;
-volatile step_state_t stepCurrState = STEP_WAIT_HOME;
+volatile step_state_t stepCurrState = STEP_WAIT;//TODO change to STEP_WAIT_HOME
 
 /* Stepper State Machine
  *
@@ -282,11 +282,11 @@ inline void stop_pwm(void){
 }
 
 inline uint8_t is_upper_sw_pressed(void){
-	return !(P2IN & BIT1);
+	return (P2IN & BIT1);
 }
 
 inline uint8_t is_lower_sw_pressed(void){
-	return !(P2IN & BIT0);
+	return (P2IN & BIT0);
 }
 
 /* For debugging only: Use to manually step motor */
