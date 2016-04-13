@@ -74,8 +74,11 @@ typedef enum  {RC_WAIT,
 				SEND_STAT_REQ,
 				WAIT_STAT_REQ,
 				ERR_STAT_REQ,
-				CHECK_STAT_REQ} rc_state_t;
-volatile rc_state_t rcCurrState = RC_WAIT;
+				CHECK_STAT_REQ,
+				SEND_FW_VER,
+				WAIT_FW_VER,
+				READ_FW_VER} rc_state_t;
+volatile rc_state_t rcCurrState = SEND_FW_VER;//RC_WAIT;
 #define WAIT_THRESH 10000
 #define RC_RUN_CHECK_INTERVAL 500
 volatile uint8_t rc_check_ran_once = 0;
@@ -240,7 +243,7 @@ void roboclaw_task(void){
 	static uint8_t run_check_flag = 0;	//Set when Check routine must run
 	static uint16_t wait_cntr = 0;		//counter to prevent hang while waiting for failed packet
 	uint8_t pckt_size = 0;				//Size of transmitted packet
-	uint8_t buf[16];					//Buffer for transmitted/recieved packet
+	uint8_t buf[32];					//Buffer for transmitted/recieved packet
 	uint16_t mbatt, lbatt, m1_curr, m2_curr, rc_temp;
 	switch(rcCurrState){
 	case RC_WAIT:
@@ -596,6 +599,38 @@ void roboclaw_task(void){
 		monitor_data.rc_status = ((uint16_t)buf[0]<<8)|(uint16_t)buf[1];
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV48
+		break;
+	case SEND_FW_VER:
+		//State action
+		wait_cntr = 0;
+		pckt_size = getRCFwVer(buf);			//Get packet
+		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
+		//State transition
+		rcCurrState = WAIT_FW_VER;					//T_DRV49
+		break;
+	case WAIT_FW_VER:
+		//State action
+		wait_cntr++;
+		//State transition
+		if(is_rc_uart_rx_ndata_ready() == 30){
+			rcCurrState = READ_FW_VER;			//T_DRV51
+		} else if(wait_cntr > WAIT_THRESH){
+			rcCurrState = SEND_FW_VER;				//T_DRV50
+		} else {
+			rcCurrState = WAIT_FW_VER;			//T_DRV52
+		}
+		break;
+	case READ_FW_VER:
+		//State action
+		pckt_size = rc_uart_get_string(buf,30);
+		if(pckt_size == 0){
+			issue_warning(WARN_RC_FW_VER_DATA_FAIL);
+		}
+		if(!checkRCFwVer(buf)){
+			issue_warning(WARN_RC_BAD_FW);
+		}
+		//State transition
+		rcCurrState = RC_WAIT;						//T_DRV53
 		break;
 	default:
 		issue_warning(WARN_ILLEGAL_RC_SM_STATE);
@@ -1385,7 +1420,7 @@ void reset_isr(void){
 		case SYSRSTIV_NONE:
 			break;
 		case SYSRSTIV_BOR:
-			issue_warning(WARN_RST_BOR);
+			//issue_warning(WARN_RST_BOR);	//Occurs during power on
 			break;
 		case SYSRSTIV_RSTNMI:
 			issue_warning(WARN_RST_RSTNMI);

@@ -60,7 +60,7 @@ void roboclaw_setup(void);
 uint8_t driveM1Power(int8_t m1Pwr, uint8_t *buf);
 uint8_t driveM2Power(int8_t m2Pwr, uint8_t *buf);
 uint8_t getRCFwVer(uint8_t *buf);
-uint8_t checkRFFwVer(uint8_t *buf);
+uint8_t checkRCFwVer(uint8_t *buf);
 uint8_t checkRCMainBatt(uint8_t *buf);
 uint8_t checkRCLogicBatt(uint8_t *buf);
 uint8_t checkRCPWM(uint8_t *buf);

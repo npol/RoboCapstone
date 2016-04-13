@@ -80,7 +80,7 @@ uint8_t getRCFwVer(uint8_t *buf){
 /* Check recieved fw version string matches
  * buf: character buffer with recieved string
  */
-uint8_t checkRFFwVer(uint8_t *buf){
+uint8_t checkRCFwVer(uint8_t *buf){
 	if(strncmp(buf,rc_fw_ver,26)==0)
 		return 1;
 	return 0;
