@@ -32,6 +32,36 @@ uint8_t ascii2hex_byte(uint8_t high_char, uint8_t low_char){
 	return num;
 }
 
+/* Create numerical int from hex ascii characters
+ * chr3: Most significant nibble
+ * chr2
+ * chr1
+ * chr0: Least significant nibble
+ * returns numerical int value
+ */
+uint16_t ascii2hex_int(uint8_t chr3, uint8_t chr2, uint8_t chr1, uint8_t chr0){
+	uint16_t num = 0;
+	num = ascii2hex_byte(chr1, chr0);
+	num |= (ascii2hex_byte(chr3,chr2)<<8);
+	return num;
+}
+
+/* Create numerical long from hex ascii characters
+ * chr3: Most significant nibble
+ * chr2
+ * chr1
+ * chr0: Least significant nibble
+ * returns numerical int value
+ */
+uint32_t ascii2hex_long(uint8_t chr7, uint8_t chr6, uint8_t chr5, uint8_t chr4, uint8_t chr3, uint8_t chr2, uint8_t chr1, uint8_t chr0){
+	uint32_t num = 0;
+	num = ascii2hex_byte(chr1, chr0);
+	num |= (uint32_t)(ascii2hex_byte(chr3,chr2))<<8;
+	num |= (uint32_t)(ascii2hex_byte(chr5,chr4))<<16;
+	num |= (uint32_t)(ascii2hex_byte(chr7,chr6))<<24;
+	return num;
+}
+
 /* Create ascii character representation of numerical byte
  * data: number to be converted
  * high_char: pointer to high nibble character
@@ -84,6 +114,69 @@ void hex2ascii_int(uint16_t data, uint8_t *char4, uint8_t *char3, uint8_t *char2
 		*char1 = lower+'0';
 	} else if((10 <= lower) && (lower <= 15)){
 		*char1 = lower-10+'A';
+	}
+	return;
+}
+
+/* Create ascii character representation of numerical 32-bit int
+ * data: number to be converted
+ * char8: pointer to high nibble character
+ * char7:
+ * char6:
+ * char5:
+ * char4:
+ * char3:
+ * char2:
+ * char1: pointer to low nibble character
+ */
+void hex2ascii_long(uint32_t data, uint8_t *char8, uint8_t *char7, uint8_t *char6, uint8_t *char5, uint8_t *char4, uint8_t *char3, uint8_t *char2, uint8_t *char1){
+	uint8_t nib8 = (data>>28)&0xf;
+	uint8_t nib7 = (data>>24)&0xf;
+	uint8_t nib6 = (data>>20)&0xf;
+	uint8_t nib5 = (data>>16)&0xf;
+	uint8_t nib4 = (data>>12)&0xf;
+	uint8_t nib3 = (data>>8)&0xf;
+	uint8_t nib2 = (data>>4)&0xf;
+	uint8_t nib1 = (data)&0xf;
+	if(nib8 <= 9){
+		*char4 = nib8+'0';
+	} else if((10 <= nib8) && (nib8 <= 15)){
+		*char4 = nib8-10+'A';
+	}
+	if(nib7 <= 9){
+		*char3 = nib7+'0';
+	} else if((10 <= nib7) && (nib7 <= 15)){
+		*char3 = nib7-10+'A';
+	}
+	if(nib6 <= 9){
+		*char2 = nib6+'0';
+	} else if((10 <= nib6) && (nib6 <= 15)){
+		*char2 = nib6-10+'A';
+	}
+	if(nib5 <= 9){
+		*char1 = nib5+'0';
+	} else if((10 <= nib5) && (nib5 <= 15)){
+		*char1 = nib5-10+'A';
+	}
+	if(nib4 <= 9){
+		*char4 = nib4+'0';
+	} else if((10 <= nib4) && (nib4 <= 15)){
+		*char4 = nib4-10+'A';
+	}
+	if(nib3 <= 9){
+		*char3 = nib3+'0';
+	} else if((10 <= nib3) && (nib3 <= 15)){
+		*char3 = nib3-10+'A';
+	}
+	if(nib2 <= 9){
+		*char2 = nib2+'0';
+	} else if((10 <= nib2) && (nib2 <= 15)){
+		*char2 = nib2-10+'A';
+	}
+	if(nib1 <= 9){
+		*char1 = nib1+'0';
+	} else if((10 <= nib1) && (nib1 <= 15)){
+		*char1 = nib1-10+'A';
 	}
 	return;
 }

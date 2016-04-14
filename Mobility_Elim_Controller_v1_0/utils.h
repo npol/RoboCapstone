@@ -32,8 +32,11 @@ extern volatile uint8_t err_flag;
 
 
 uint8_t ascii2hex_byte(uint8_t high_char, uint8_t low_char);
+uint16_t ascii2hex_int(uint8_t chr3, uint8_t chr2, uint8_t chr1, uint8_t chr0);
+uint32_t ascii2hex_long(uint8_t chr7, uint8_t chr6, uint8_t chr5, uint8_t chr4, uint8_t chr3, uint8_t chr2, uint8_t chr1, uint8_t chr0);
 void hex2ascii_byte(uint8_t data, uint8_t *high_char, uint8_t *low_char);
 void hex2ascii_int(uint16_t data, uint8_t *char4, uint8_t *char3, uint8_t *char2, uint8_t *char1);
+void hex2ascii_long(uint32_t data, uint8_t *char8, uint8_t *char7, uint8_t *char6, uint8_t *char5, uint8_t *char4, uint8_t *char3, uint8_t *char2, uint8_t *char1);
 uint8_t P1_get(uint8_t *buf);
 uint8_t P2_get(uint8_t *buf);
 uint8_t P3_get(uint8_t *buf);

@@ -189,6 +189,143 @@ uint8_t RCgetEnc2Count(uint8_t *buf){
 	return 2;
 }
 
+/* Set Motor 1 PID Constants
+ * pid_constants: array of 4-byte numbers:
+ * 0: D-value
+ * 1: P-value
+ * 2: I-value
+ * 3: QPPS
+ */
+uint8_t setM1PID(uint32_t *pid_constants,uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_PID1;
+	buf[2] = (uint8_t)((pid_constants[0]>>24)&0xFF);	//D msbyte
+	buf[3] = (uint8_t)((pid_constants[0]>>16)&0xFF);
+	buf[4] = (uint8_t)((pid_constants[0]>>8)&0xFF);
+	buf[5] = (uint8_t)((pid_constants[0])&0xFF);		//D lsbyte
+	buf[6] = (uint8_t)((pid_constants[1]>>24)&0xFF);	//P msbyte
+	buf[7] = (uint8_t)((pid_constants[1]>>16)&0xFF);
+	buf[8] = (uint8_t)((pid_constants[1]>>8)&0xFF);
+	buf[9] = (uint8_t)((pid_constants[1])&0xFF);		//P lsbyte
+	buf[10] = (uint8_t)((pid_constants[2]>>24)&0xFF);	//I msbyte
+	buf[11] = (uint8_t)((pid_constants[2]>>16)&0xFF);
+	buf[12] = (uint8_t)((pid_constants[2]>>8)&0xFF);
+	buf[13] = (uint8_t)((pid_constants[2])&0xFF);		//I lsbyte
+	buf[14] = (uint8_t)((pid_constants[3]>>24)&0xFF);	//QPPS msbyte
+	buf[15] = (uint8_t)((pid_constants[3]>>16)&0xFF);
+	buf[16] = (uint8_t)((pid_constants[3]>>8)&0xFF);
+	buf[17] = (uint8_t)((pid_constants[3])&0xFF);		//QPPS lsbyte
+	uint16_t packet_crc = crc16(buf,18);
+	buf[18] = (uint8_t)(packet_crc>>8);
+	buf[19] = (uint8_t)packet_crc;
+	return 20;
+}
+
+/* Set Motor 2 PID Constants
+ * pid_constants: array of 4-byte numbers:
+ * 0: D-value
+ * 1: P-value
+ * 2: I-value
+ * 3: QPPS
+ */
+uint8_t setM2PID(uint32_t *pid_constants,uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_PID2;
+	buf[2] = (uint8_t)((pid_constants[0]>>24)&0xFF);	//D msbyte
+	buf[3] = (uint8_t)((pid_constants[0]>>16)&0xFF);
+	buf[4] = (uint8_t)((pid_constants[0]>>8)&0xFF);
+	buf[5] = (uint8_t)((pid_constants[0])&0xFF);		//D lsbyte
+	buf[6] = (uint8_t)((pid_constants[1]>>24)&0xFF);	//P msbyte
+	buf[7] = (uint8_t)((pid_constants[1]>>16)&0xFF);
+	buf[8] = (uint8_t)((pid_constants[1]>>8)&0xFF);
+	buf[9] = (uint8_t)((pid_constants[1])&0xFF);		//P lsbyte
+	buf[10] = (uint8_t)((pid_constants[2]>>24)&0xFF);	//I msbyte
+	buf[11] = (uint8_t)((pid_constants[2]>>16)&0xFF);
+	buf[12] = (uint8_t)((pid_constants[2]>>8)&0xFF);
+	buf[13] = (uint8_t)((pid_constants[2])&0xFF);		//I lsbyte
+	buf[14] = (uint8_t)((pid_constants[3]>>24)&0xFF);	//QPPS msbyte
+	buf[15] = (uint8_t)((pid_constants[3]>>16)&0xFF);
+	buf[16] = (uint8_t)((pid_constants[3]>>8)&0xFF);
+	buf[17] = (uint8_t)((pid_constants[3])&0xFF);		//QPPS lsbyte
+	uint16_t packet_crc = crc16(buf,18);
+	buf[18] = (uint8_t)(packet_crc>>8);
+	buf[19] = (uint8_t)packet_crc;
+	return 20;
+}
+
+/* Read Motor 1 encoder speed in quadrature pulses per second
+ * buf: character buffer, at least 2 bytes
+ */
+uint8_t RCgetEnc1Speed(uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_READ_M1_ENC_SPEED;
+	return 2;
+}
+
+/* Read Motor 2 encoder speed in quadrature pulses per second
+ * buf: character buffer, at least 2 bytes
+ */
+uint8_t RCgetEnc2Speed(uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_READ_M2_ENC_SPEED;
+	return 2;
+}
+
+/* Set Motor 1 Signed speed
+ * m1Spd: 4-byte speed value in quadrature pulses per second)
+ * buf: character buffer with at least 8 bytes
+ */
+uint8_t driveM1Speed(uint32_t m1Spd, uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_SET_M1_SPEED;
+	buf[2] = (uint8_t)((m1Spd>>24)&0xFF);
+	buf[3] = (uint8_t)((m1Spd>>16)&0xFF);
+	buf[4] = (uint8_t)((m1Spd>>8)&0xFF);
+	buf[5] = (uint8_t)(m1Spd&0xFF);
+	uint16_t packet_crc = crc16(buf,6);
+	buf[6] = (uint8_t)(packet_crc>>8);
+	buf[7] = (uint8_t)packet_crc;
+	return 8;	//Packet size
+}
+
+/* Set Motor 2 Signed speed
+ * m2Spd: 4-byte speed value in quadrature pulses per second)
+ * buf: character buffer with at least 8 bytes
+ */
+uint8_t driveM2Speed(uint32_t m2Spd, uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_SET_M2_SPEED;
+	buf[2] = (uint8_t)((m2Spd>>24)&0xFF);
+	buf[3] = (uint8_t)((m2Spd>>16)&0xFF);
+	buf[4] = (uint8_t)((m2Spd>>8)&0xFF);
+	buf[5] = (uint8_t)(m2Spd&0xFF);
+	uint16_t packet_crc = crc16(buf,6);
+	buf[6] = (uint8_t)(packet_crc>>8);
+	buf[7] = (uint8_t)packet_crc;
+	return 8;	//Packet size
+}
+
+/* Set Signed speed for both motors
+ * m1Spd: 4-byte speed value for motor 1 in quadrature pulses per second)
+ * m2Spd: 4-byte speed value for motor 2 in quadrature pulses per second
+ */
+uint8_t driveM12Speed(uint32_t m1Spd, uint32_t m2Spd, uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_SET_M12_SPEED;
+	buf[2] = (uint8_t)((m1Spd>>24)&0xFF);
+	buf[3] = (uint8_t)((m1Spd>>16)&0xFF);
+	buf[4] = (uint8_t)((m1Spd>>8)&0xFF);
+	buf[5] = (uint8_t)(m1Spd&0xFF);
+	buf[6] = (uint8_t)((m2Spd>>24)&0xFF);
+	buf[7] = (uint8_t)((m2Spd>>16)&0xFF);
+	buf[8] = (uint8_t)((m2Spd>>8)&0xFF);
+	buf[9] = (uint8_t)(m2Spd&0xFF);
+	uint16_t packet_crc = crc16(buf,10);
+	buf[10] = (uint8_t)(packet_crc>>8);
+	buf[11] = (uint8_t)packet_crc;
+	return 12;	//Packet size
+}
+
 /* Datasheet provided function to calculate CRC
  * For transmitted packets: CRC of address and command except CRC
  * For recieved packets: CRC of all bytes recieved (except CRC), and include sent address and command byte
