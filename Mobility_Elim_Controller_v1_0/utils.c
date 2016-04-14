@@ -139,24 +139,24 @@ void hex2ascii_long(uint32_t data, uint8_t *char8, uint8_t *char7, uint8_t *char
 	uint8_t nib2 = (data>>4)&0xf;
 	uint8_t nib1 = (data)&0xf;
 	if(nib8 <= 9){
-		*char4 = nib8+'0';
+		*char8 = nib8+'0';
 	} else if((10 <= nib8) && (nib8 <= 15)){
-		*char4 = nib8-10+'A';
+		*char8 = nib8-10+'A';
 	}
 	if(nib7 <= 9){
-		*char3 = nib7+'0';
+		*char7 = nib7+'0';
 	} else if((10 <= nib7) && (nib7 <= 15)){
-		*char3 = nib7-10+'A';
+		*char7 = nib7-10+'A';
 	}
 	if(nib6 <= 9){
-		*char2 = nib6+'0';
+		*char6 = nib6+'0';
 	} else if((10 <= nib6) && (nib6 <= 15)){
-		*char2 = nib6-10+'A';
+		*char6 = nib6-10+'A';
 	}
 	if(nib5 <= 9){
-		*char1 = nib5+'0';
+		*char5 = nib5+'0';
 	} else if((10 <= nib5) && (nib5 <= 15)){
-		*char1 = nib5-10+'A';
+		*char5 = nib5-10+'A';
 	}
 	if(nib4 <= 9){
 		*char4 = nib4+'0';

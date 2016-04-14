@@ -58,6 +58,12 @@ void enable_rc_uart_txint(void){
 }
 
 void rc_uart_send_byte(uint8_t data){
+	__disable_interrupt();
+	//Check if rx buffer is empty (should be empty)
+	if(RC_UART_data.rx_head != RC_UART_data.rx_tail){
+		issue_warning(WARN_RC_RXBUF_NOT_EMPTY2);
+		RC_UART_data.rx_head = RC_UART_data.rx_tail;	//Clear buffer
+	}
 	RC_UART_data.tx_bytes[RC_UART_data.tx_head] = data;
 	RC_UART_data.tx_head++;
 	if(RC_UART_data.tx_head >= RC_UART_TX_BUF_SIZE){	//Wraparound condition
@@ -67,11 +73,18 @@ void rc_uart_send_byte(uint8_t data){
 		issue_warning(WARN_RC_TX_BUF_FULL1);
 	}
 	enable_rc_uart_txint();		//Data sent via UART interrupt
+	__enable_interrupt();
 	return;
 }
 
 void rc_uart_send_string(uint8_t *data, uint8_t size){
+	__disable_interrupt();
 	uint8_t i = 0;
+	//Check if rx buffer is empty (should be empty)
+	if(RC_UART_data.rx_head != RC_UART_data.rx_tail){
+		issue_warning(WARN_RC_RXBUF_NOT_EMPTY);
+		RC_UART_data.rx_head = RC_UART_data.rx_tail;	//Clear buffer
+	}
 	for(i = 0; i < size; i++){
 		RC_UART_data.tx_bytes[RC_UART_data.tx_head] = data[i];
 		RC_UART_data.tx_head++;
@@ -83,6 +96,7 @@ void rc_uart_send_string(uint8_t *data, uint8_t size){
 		}
 	}
 	enable_rc_uart_txint();
+	__enable_interrupt();
 	return;
 }
 
@@ -90,31 +104,40 @@ void rc_uart_send_string(uint8_t *data, uint8_t size){
  * to be processed
  */
 uint8_t is_rc_uart_rx_data_ready(void){
-	return RC_UART_data.rx_tail != RC_UART_data.rx_head;
+	__disable_interrupt();
+	uint8_t result = RC_UART_data.rx_tail != RC_UART_data.rx_head;
+	__enable_interrupt();
+	return result;
 }
 
 /* Application calls function to check if there is data
  * to be processed: returns number of bytes
  */
 uint8_t is_rc_uart_rx_ndata_ready(void){
+	__disable_interrupt();
+	uint8_t result;
 	if(RC_UART_data.rx_tail == RC_UART_data.rx_head){
-		return 0;
+		result= 0;
 	} else if(RC_UART_data.rx_head > RC_UART_data.rx_tail){
-		return RC_UART_data.rx_head - RC_UART_data.rx_tail;
+		result = RC_UART_data.rx_head - RC_UART_data.rx_tail;
 	} else {//RC_UART_data.rx_head < RC_UART_data.rx_tail
-		return RC_UART_data.rx_head + (RC_UART_RX_BUF_SIZE - RC_UART_data.rx_tail);
+		result = RC_UART_data.rx_head + (RC_UART_RX_BUF_SIZE - RC_UART_data.rx_tail);
 	}
+	__enable_interrupt();
+	return result;
 }
 
 /* Application calls function to get one recieved byte
  * returns byte
  */
 uint8_t rc_uart_get_byte(void){
+	__disable_interrupt();
 	uint8_t rx_byte = RC_UART_data.rx_bytes[RC_UART_data.rx_tail];
 	RC_UART_data.rx_tail++;
 	if(RC_UART_data.rx_tail >= RC_UART_RX_BUF_SIZE){	//Wraparound condition
 		RC_UART_data.rx_tail = 0;
 	}
+	__enable_interrupt();
 	return rx_byte;
 }
 

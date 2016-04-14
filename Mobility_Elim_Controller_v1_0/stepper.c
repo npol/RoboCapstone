@@ -196,6 +196,7 @@ void stepper_task(void){
 		break;
 	case STEP_START_MOVE:									//STATE_STP11
 		//State action
+		__disable_interrupt();
 		step_setpoint = step_request_pos;
 		step_run_done = 0;
 		if(step_setpoint > step_position){	//Raise
@@ -218,6 +219,7 @@ void stepper_task(void){
 		} else {
 			stepCurrState = STEP_RUN_MOVE;					//T_STP24
 		}
+		__enable_interrupt();
 		break;
 	case STEP_RUN_MOVE:										//STATE_STP12
 		//State action

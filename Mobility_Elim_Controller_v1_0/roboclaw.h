@@ -29,6 +29,8 @@
 #define RC_READ_LOGIC_BATT_VOLT 25
 #define RC_PID1		28
 #define RC_PID2		29
+#define RC_READ_M1_PID 55
+#define RC_READ_M2_PID 56
 #define RC_READ_MOTOR_PWM_VALUES 48
 #define RC_READ_MOTOR_CURRENTS 49
 #define RC_SET_PIN_MODES 74
@@ -80,6 +82,8 @@ uint8_t RCgetEnc1Count(uint8_t *buf);
 uint8_t RCgetEnc2Count(uint8_t *buf);
 uint8_t setM1PID(uint32_t *pid_constants,uint8_t *buf);
 uint8_t setM2PID(uint32_t *pid_constants,uint8_t *buf);
+uint8_t getM1PID(uint8_t *buf);
+uint8_t getM2PID(uint8_t *buf);
 uint8_t RCgetEnc1Speed(uint8_t *buf);
 uint8_t RCgetEnc2Speed(uint8_t *buf);
 uint8_t driveM1Speed(uint32_t m2Spd, uint8_t *buf);

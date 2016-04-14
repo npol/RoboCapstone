@@ -253,6 +253,24 @@ uint8_t setM2PID(uint32_t *pid_constants,uint8_t *buf){
 	return 20;
 }
 
+/* Get Motor 1 PID Constants
+ * buf: character array of at least 2 bytes
+ */
+uint8_t getM1PID(uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_READ_M1_PID;
+	return 2;
+}
+
+/* Get Motor 2 PID Constants
+ * buf: character array of at least 2 bytes
+ */
+uint8_t getM2PID(uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_READ_M2_PID;
+	return 2;
+}
+
 /* Read Motor 1 encoder speed in quadrature pulses per second
  * buf: character buffer, at least 2 bytes
  */
@@ -347,4 +365,6 @@ uint16_t crc16(uint8_t *packet, uint8_t nBytes){
 	}
 	return crc;
 }
+
+
 
