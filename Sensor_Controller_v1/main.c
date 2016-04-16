@@ -14,6 +14,8 @@
 #include "utils.h"
 #include "clock_f5.h"
 #include "dbg_uart_uscia0.h"
+#include "MCP2515.h"
+#include "can_spi_uscib0.h"
 
 /** Debug task macros and globals **/
 void debug_task(void);
@@ -131,6 +133,30 @@ uint16_t adc_data_ready = 0x0000;	//Set bit indicates new conversion (set by adc
 
 /** END ADC task globals **/
 
+/** CAN task globals **/
+void can_setup(void);
+void can_task(void);
+
+#define CAN_RX_BUF_SIZE 8
+uint8_t can_rx_buf[CAN_RX_BUF_SIZE];
+uint8_t can_rx_buf_head = 0;
+uint8_t can_rx_buf_tail = 0;
+
+typedef enum  {CAN_WAIT,
+				CHECK_CAN_RX,
+				INIT_MSG_READ,
+				MSG_READ_WAIT_WRITE,
+				MSG_READ_NEXT_WRITE,
+				MSG_RX,
+				CHECK_CAN_TX,
+				INIT_MSG_LOAD,	//12Vsense
+				MSG_LOAD_WAIT_WRITE,
+				MSG_LOAD_NEXT_WRITE
+} can_state_t;
+volatile can_state_t canCurrState = CAN_WAIT;
+
+/** END CAN task globals **/
+
 /** Main Loop **/
 
 int main(void) {
@@ -153,16 +179,129 @@ int main(void) {
 	setup_dbg_uart();
 	monitor_setup();
 	adc_setup();
+	CAN_SPI_setup(0, 1);	//Idle Low, out on falling edge
     // Enable Interrupts
     __bis_SR_register(GIE);
+    setup_mcp2515();
     while(1)
     {
         debug_task();
         //monitor_task();
+        can_task();
     }
 }
 
 /** END Main Loop **/
+
+/** CAN task functions **/
+void can_setup(void){
+	return;
+}
+
+void can_task(void){
+	if(CAN_RX0BUF_INT){
+		dbg_uart_send_string("rx",2);
+		mcp2515_write_register(0x2C, 0);	//Clear interrupts
+	}
+	return;
+}
+
+/* Initiate message transmission
+ * sid: Standard identifier, lowest 10 bits
+ * len: number of data bytes
+ * data: array of data bytes
+ */
+void can_tx_message_buf0(uint16_t sid, uint8_t len, uint8_t *data){
+	//Standard Identifier
+	mcp2515_write_register(MCP2515_TXB0SIDH,(uint8_t)(sid>>3));
+	mcp2515_write_register(MCP2515_TXB0SIDL,(uint8_t)(sid<<5));
+	//Data length
+	mcp2515_write_register(MCP2515_TXB0DLC,len);
+	//Data bytes
+	uint8_t i;
+	for(i=0; i<len;i++){
+		mcp2515_write_register(MCP2515_TXB0D0+i,data[i]);
+	}
+	//Transmit request
+	mcp2515_write_register(MCP2515_TXB0CTRL, MCP2515_TXREQ|MCP2515_TXP_3);
+}
+
+/* Manually read MCP2515 register
+ * debug_cmd_buf: Character buffer with user command
+ * response_buf: Empty buffer to send response
+ */
+inline uint8_t debug_mcp2515_read_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf){
+	uint8_t reg_addr = ascii2hex_byte(debug_cmd_buf[14],debug_cmd_buf[15]);
+	uint8_t reg_value = mcp2515_read_register(reg_addr);
+	uint8_t ascii_value_high = '0';
+	uint8_t ascii_value_low = '0';
+	hex2ascii_byte(reg_value, &ascii_value_high, &ascii_value_low);
+	response_buf[0] = 'r';
+	response_buf[1] = 'e';
+	response_buf[2] = 'a';
+	response_buf[3] = 'd';
+	response_buf[4] = ' ';
+	response_buf[5] = '0';
+	response_buf[6] = 'x';
+	response_buf[7] = debug_cmd_buf[14];
+	response_buf[8] = debug_cmd_buf[15];
+	response_buf[9] = ':';
+	response_buf[10] = ' ';
+	response_buf[11] = '0';
+	response_buf[12] = 'x';
+	response_buf[13] = ascii_value_high;
+	response_buf[14] = ascii_value_low;
+	return 15;
+}
+
+/* Manually write MCP2515 register
+ * debug_cmd_buf: Character buffer with user command
+ * response_buf: Empty buffer to send response
+ */
+inline uint8_t debug_mcp2515_write_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf){
+	uint8_t reg_addr = ascii2hex_byte(debug_cmd_buf[15],debug_cmd_buf[16]);
+	uint8_t data = ascii2hex_byte(debug_cmd_buf[20],debug_cmd_buf[21]);
+	mcp2515_write_register(reg_addr, data);
+	response_buf[0] = 'w';
+	response_buf[1] = 'r';
+	response_buf[2] = 'i';
+	response_buf[3] = 't';
+	response_buf[4] = 'e';
+	response_buf[5] = ' ';
+	response_buf[6] = '0';
+	response_buf[7] = 'x';
+	response_buf[8] = debug_cmd_buf[15];
+	response_buf[9] = debug_cmd_buf[16];
+	response_buf[10] = ':';
+	response_buf[11] = ' ';
+	response_buf[12] = '0';
+	response_buf[13] = 'x';
+	response_buf[14] = debug_cmd_buf[20];
+	response_buf[15] = debug_cmd_buf[21];
+	return 16;
+}
+
+inline uint8_t debug_can_rx(uint8_t *response_buf){
+	uint8_t response_size = 0;
+	//Check if there is data
+	if(can_rx_buf_head != can_rx_buf_tail){
+		hex2ascii_byte(can_rx_buf[can_rx_buf_tail],&response_buf[2],&response_buf[3]);
+		can_rx_buf_tail++;
+		if(can_rx_buf_tail >= CAN_RX_BUF_SIZE){
+			can_rx_buf_tail = 0;
+		}
+		response_buf[0] = '0';
+		response_buf[1] = 'x';
+		response_size = 4;
+	} else {//Buffer empty
+		response_buf[0] = 'n';
+		response_buf[1] = 'a';
+		response_size = 2;
+	}
+	return response_size;
+}
+
+/** END CAN task functions **/
 
 /** Monitor Task Functions **/
 
@@ -462,16 +601,16 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"led6 off",7)==0) && (debug_cmd_buf_ptr == 8)){
 			//>led6 off
 			led_P4_7_off();
-/*		} else if((strncmp(debug_cmd_buf,"can regread",11)==0) && (debug_cmd_buf_ptr == 16)){
+		} else if((strncmp(debug_cmd_buf,"can regread",11)==0) && (debug_cmd_buf_ptr == 16)){
 			//>can regread <register in hex>
 			//>can regread 0x00
 			response_size = debug_mcp2515_read_reg(debug_cmd_buf,response_buf);
-			uart_send_string(response_buf,response_size);
+			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"can regwrite",12)==0) && (debug_cmd_buf_ptr == 22)){
 			//>can regwrite <register in hex> <data in hex>
 			//>can regwrite 0x00 0x00
 			response_size = debug_mcp2515_write_reg(debug_cmd_buf,response_buf);
-			uart_send_string(response_buf,response_size);*/
+			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P1 get",6)==0) && (debug_cmd_buf_ptr == 6)){
 			//>P1 get
 			response_size = P1_get(response_buf);
@@ -540,16 +679,14 @@ void debug_task(void){
 			//>mon 5V0
 			response_size = print_mon_analog_value(monitor_data.vsense_5V0, response_buf);
 			dbg_uart_send_string(response_buf,response_size);
-			/*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
+		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
 			//can tx 0x00
 			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
 			can_tx_message_buf0(0x279, 1, &temp);
-#ifndef PC_CAN
-			uart_send_string("tx",2);
-#endif
+			dbg_uart_send_string("tx",2);
 		} else if((strncmp(debug_cmd_buf,"can rx",6)==0) && (debug_cmd_buf_ptr == 6)){
 			response_size = debug_can_rx(response_buf);
-			uart_send_string(response_buf, response_size);*/
+			dbg_uart_send_string(response_buf, response_size);
 		} else if((strncmp(debug_cmd_buf,"adc0",4)==0) && (debug_cmd_buf_ptr == 4)){
 			response_size = print_int(adc_output_buffer[0],response_buf);
 			dbg_uart_send_string(response_buf,response_size);
@@ -686,6 +823,31 @@ __interrupt void USCIA0_ISR(void){
 	} else {
 		issue_warning(WARN_USCIA0_INT_ILLEGAL_FLAG);
 		while(1);
+	}
+}
+
+/* CAN SPI USCIB0 Interrupt Handler
+ * SPI Rx:
+ * SPI Tx:
+ */
+#pragma vector=USCI_B0_VECTOR
+__interrupt void USCIB0_ISR(void){
+	if((UCB0IE & UCRXIE) && (UCB0IFG & UCRXIFG)){				//SPI Rxbuf full interrupt
+		CAN_SPI_data.rx_bytes[CAN_SPI_data.rx_ptr] = UCB0RXBUF;	//Get latest byte from HW
+		CAN_SPI_data.rx_ptr++;									//Flag reset with buffer read
+		if(CAN_SPI_data.rx_ptr >= CAN_SPI_data.num_bytes){		//Done reading data
+			CAN_SPI_CS_DEASSERT;									//Disable CS and disable interrupt
+			CAN_SPI_RXINT_DISABLE;
+			CAN_SPI_data.data_ready = 1;
+		}
+	} else if((UCB0IE & UCTXIE) && (UCB0IFG & UCTXIFG)){
+		UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
+		CAN_SPI_data.tx_ptr++;								//Flag reset with buffer write
+		if(CAN_SPI_data.tx_ptr >= CAN_SPI_data.num_bytes){		//Done transmitting data
+			CAN_SPI_TXINT_DISABLE;							//Disable Tx interrupt
+		}
+	} else {
+		issue_warning(WARN_USCIB0_INT_ILLEGAL_FLAG);
 	}
 }
 
