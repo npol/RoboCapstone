@@ -16,6 +16,14 @@ void setup_mcp2515(void);
 void mcp2562_shutdown_enable(void);
 void mcp2562_shutdown_disable(void);
 void mcp2515_reset(void);
+void mcp2515_read_mult_registers_nonblock_init(uint8_t start_reg_addr, uint8_t num_regs);
+uint8_t mcp2515_read_mult_registers_nonblock_getdata(uint8_t *buf);
+void mcp2515_write_mult_registers_nonblock_init(uint8_t start_reg_addr, uint8_t num_regs, uint8_t *data);
+void mcp2515_write_mult_registers_nonblock_end(void);
+void mcp2515_bitmod_register_nonblock_init(uint8_t reg_addr, uint8_t mask, uint8_t data);
+void mcp2515_bitmod_register_nonblock_end(void);
+void mcp2515_rts_nonblock_init(uint8_t buffer);
+void mcp2515_rts_nonblock_end(void);
 
 #define CAN_RX0BUF_INT (!(P2IN&BIT5))
 #define CAN_RX1BUF_INT (!(P2IN&BIT6))
@@ -141,6 +149,9 @@ void mcp2515_reset(void);
 #define MCP2515_RXM0EID0	0x23	//Mask 0 Extended Identifier Low, EID[7:0] in bit[7:0]
 #define MCP2515_RXM1EID0	0x27	//Mask 1 Extended Identifier Low, EID[7:0] in bit[7:0]
 
+#define MCP2515_RXB0CTRL	0x60	//Recieve buffer 0 control
+#define MCP2515_RXB1CTRL	0x70	//Recieve buffer 1 control
+
 /* Configuration Registers: Timing */
 #define MCP2515_CNF1		0x2A	//Configuration 1
 #define MCP2515_SJW_0		0x00	//Synchronization Jump Width: 1xTQ
@@ -161,6 +172,30 @@ void mcp2515_reset(void);
 //PHSEG2[2:0] in bit[2:0]: PS2 Length bits
 
 /* Error Indication Registers */
+#define MCP2515_CANINTE		0x2B	//Interrupt Enable
+#define MCP2515_CANINTF		0x2C	//Interrupt flag
+#define MCP2515_MERRF		BIT7	//Message error interrupt flag
+#define MCP2515_WAKIF		BIT6	//Wake up interrupt flag
+#define MCP2515_ERRIF		BIT5	//Error interrupt flag
+#define MCP2515_TX2IF		BIT4	//Transmit buffer 2 empty interrupt flag
+#define MCP2515_TX1IF		BIT3	//Transmit buffer 1 empty interrupt flag
+#define MCP2515_TX0IF		BIT2	//Transmit buffer 0 empty interrupt flag
+#define MCP2515_RX1IF		BIT1	//Recieve buffer 1 full interrupt flag
+#define MCP2515_RX0IF		BIT0	//Recieve buffer 0 full interrupt flag
+
+#define MCP2515_EFLG		0x2D	//Error flag
+#define MCP2515_RX1OVR		BIT7	//Recieve buffer 1 overflow
+#define MCP2515_RX0OVR		BIT6	//Recieve buffer 0 overflow
+#define MCP2515_TXBO		BIT5	//Buss off error flag
+#define MCP2515_TXEP		BIT4	//Tranmit error passive flag
+#define MCP2515_RXEP		BIT3	//Recieve error passive flag
+#define MCP2515_TXWAR		BIT2	//Transmit error warning flag
+#define MCP2515_RXWAR		BIT1	//Recieve error warning flag
+#define MCP2515_EWARN		BIT0	//Error warning flag
+#define MCP2515_TEC			0x1C	//Transmit error count
+#define MCP2515_REC			0x1D	//Recieve error count
+
+
 
 
 #endif /* MCP2515_H_ */
