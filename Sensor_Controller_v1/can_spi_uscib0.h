@@ -25,13 +25,15 @@
 #include "utils.h"
 
 /* SPI Macros for CS */
-#define CAN_SPI_BUF_SIZE 8
+#define CAN_SPI_BUF_SIZE 32
 #define CAN_SPI_CS_ASSERT			(P2OUT &= ~BIT3)
 #define CAN_SPI_CS_DEASSERT 		(P2OUT |= BIT3)
 #define CAN_SPI_TXINT_ENABLE        (UCB0IE |= UCTXIE)
 #define CAN_SPI_TXINT_DISABLE       (UCB0IE &= ~UCTXIE)
 #define CAN_SPI_RXINT_ENABLE        (UCB0IE |= UCRXIE)
 #define CAN_SPI_RXINT_DISABLE       (UCB0IE &= ~UCRXIE)
+#define CAN_SPI_INT_ENABLE				(UCB0IE |= (UCTXIE+UCRXIE))
+#define CAN_SPI_INT_DISABLE				(UCB0IE &= ~(UCTXIE+UCRXIE))
 
 struct CAN_SPI_data_struct{
 	uint8_t tx_bytes[CAN_SPI_BUF_SIZE];	//Bytes to send to slave

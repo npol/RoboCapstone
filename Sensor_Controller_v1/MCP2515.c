@@ -26,7 +26,7 @@
 
 #include "MCP2515.h"
 
-#define LOOPBACK_EN
+//#define LOOPBACK_EN
 
 void setup_mcp2515(void){
 	/* Configure MCP2562 to enable standby */

@@ -227,6 +227,7 @@ void can_task(void){
 	uint8_t buf[16];
 	uint8_t resp_size = 0;
 	uint8_t i;
+	static uint8_t wait_count = 0;
 	switch(can_current_state){
 	case CAN_IDLE:						//STATE_CAN0
 		//State action: no action
@@ -290,7 +291,15 @@ void can_task(void){
 		can_current_state = WAIT_SETUP_TX;					//T_CAN7
 		break;
 	case WAIT_SETUP_TX:					//STATE_CAN5
-		//State action: no action
+		//State action
+/*		__disable_interrupt();
+		if(UCB0STAT & UCBUSY){			//Hack to force USCIB0 to release SPI and transaction if Rx interrupt doesn't fire on last byte
+			wait_count++;
+		} else {
+			CAN_SPI_CS_DEASSERT;
+			CAN_SPI_data.data_ready = 1;
+		}
+		__enable_interrupt();*/
 		//State transition
 		if(is_CAN_spi_rx_ready()){
 			can_current_state = INIT_TX_MSG;				//T_CAN9
@@ -341,6 +350,7 @@ void can_task(void){
 		if(buf[0] & MCP2515_MLOA){
 			can_current_state = INIT_TX_MSG;					//T_CAN16
 		} else {
+			can_tx_req.tx_request = 0;
 			can_current_state = CAN_IDLE;						//T_CAN17
 		}
 		break;
@@ -379,7 +389,8 @@ void can_task(void){
 		//Get data
 		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
 		//Issue relevant commands
-		//TODO
+		//TODO: Issue revlevant commands
+		dbg_uart_send_string("rx msg0",6);
 		//Clear interrupt to release buffer
 		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX0IF,0x00);
 		//State transition
@@ -391,6 +402,7 @@ void can_task(void){
 		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
 		//Issue relevant commands
 		//TODO
+		dbg_uart_send_string("rx msg1",6);
 		//Clear interrupt to release buffer
 		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX1IF,0x00);
 		//State transition
@@ -931,9 +943,14 @@ void debug_task(void){
 			can_dbg = 0;
 		} else if((strncmp(debug_cmd_buf,"can tx2",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//only do when can_dbg = 1, and clear can_dbg after this command
-			can_tx_req.msg_id = 0x030F;
-			can_tx_req.length = 0;
-			can_tx_req.tx_request = 1;
+			if(!can_tx_req.tx_request){
+				can_tx_req.msg_id = 0x030F;
+				can_tx_req.length = 0;
+				can_tx_req.tx_request = 1;
+				dbg_uart_send_string("ok",2);
+			} else {
+				dbg_uart_send_string("fail",4);
+			}
 		} else if((strncmp(debug_cmd_buf,"adc0",4)==0) && (debug_cmd_buf_ptr == 4)){
 			response_size = print_int(adc_output_buffer[0],response_buf);
 			dbg_uart_send_string(response_buf,response_size);
@@ -1087,15 +1104,16 @@ __interrupt void USCIB0_ISR(void){
 			CAN_SPI_RXINT_DISABLE;
 			CAN_SPI_data.data_ready = 1;
 		}
-	} else if((UCB0IE & UCTXIE) && (UCB0IFG & UCTXIFG)){
+	}
+	if((UCB0IE & UCTXIE) && (UCB0IFG & UCTXIFG)){
 		UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
 		CAN_SPI_data.tx_ptr++;								//Flag reset with buffer write
 		if(CAN_SPI_data.tx_ptr >= CAN_SPI_data.num_bytes){		//Done transmitting data
 			CAN_SPI_TXINT_DISABLE;							//Disable Tx interrupt
 		}
-	} else {
+	} /*else {
 		issue_warning(WARN_USCIB0_INT_ILLEGAL_FLAG);
-	}
+	}*/
 }
 
 /* ADC12 Interrupt Vector
@@ -1192,7 +1210,7 @@ void reset_isr(void){
 			//issue_warning(WARN_RST_SECYV); //Software reset
 			break;
 		case SYSRSTIV_SVSL:
-			issue_warning(WARN_RST_SVSL);
+			//issue_warning(WARN_RST_SVSL);	//Occurs on powerup
 			break;
 		case SYSRSTIV_SVSH:
 			issue_warning(WARN_RST_SVSH);

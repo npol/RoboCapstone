@@ -60,12 +60,12 @@ void CAN_SPI_setup(uint8_t idle, uint8_t edge){
 	UCB0CTL1 = UCSSEL_2  |	//Source from SMCLK
 			   UCSWRST;		//Keep USCI in reset
 
-	UCB0BR0 = 25;			//run at 1MHz
+	UCB0BR0 = 250;			//run at 1MHz
 
 	//Enable use of SPI pins MOSI, MISO, SCK
 	P3SEL |= BIT0 + BIT1 + BIT2;
 
-	//CS on P3.6, set output high (disabled)
+	//CS on P2.3, set output high (disabled)
 	P2DIR |= BIT3;
 	CAN_SPI_CS_DEASSERT;
 
@@ -88,8 +88,7 @@ void init_CAN_SPI_transac(uint8_t *tx_bytes, uint8_t num_bytes){
 	CAN_SPI_data.tx_ptr = 0;					//Reset pointers
 	CAN_SPI_data.rx_ptr = 0;
 	CAN_SPI_CS_ASSERT;
-	CAN_SPI_TXINT_ENABLE;	//Enable SPI Interrupts
-	CAN_SPI_RXINT_ENABLE;
+	CAN_SPI_INT_ENABLE;	//Enable SPI Interrupts
 	return;
 }
 
@@ -101,8 +100,7 @@ uint8_t get_CAN_SPI_rx_data(uint8_t *rx_data){
 	for(i = 0; i < CAN_SPI_data.num_bytes; i++){	//Copy data
 		rx_data[i] = CAN_SPI_data.rx_bytes[i];
 	}
-	CAN_SPI_TXINT_DISABLE;
-	CAN_SPI_RXINT_DISABLE;
+	CAN_SPI_INT_DISABLE;
 	CAN_SPI_data.data_ready = 0;
 	CAN_SPI_data.in_use_flag = 0;						//Release SPI datastructure
 	return CAN_SPI_data.num_bytes;
@@ -112,8 +110,7 @@ uint8_t get_CAN_SPI_rx_data(uint8_t *rx_data){
  *
  */
 void end_CAN_SPI_transac(void){
-	CAN_SPI_TXINT_DISABLE;
-	CAN_SPI_RXINT_DISABLE;
+	CAN_SPI_INT_DISABLE;
 	CAN_SPI_data.data_ready = 0;
 	CAN_SPI_data.in_use_flag = 0;						//Release SPI datastructure
 	return;
@@ -123,9 +120,17 @@ void end_CAN_SPI_transac(void){
  *
  */
 uint8_t is_CAN_spi_busy(void){
-	return CAN_SPI_data.in_use_flag;
+	uint8_t ret_val;
+	__disable_interrupt();
+	ret_val = CAN_SPI_data.in_use_flag;
+	__enable_interrupt();
+	return ret_val;
 }
 
 uint8_t is_CAN_spi_rx_ready(void){
-	return CAN_SPI_data.data_ready;
+	uint8_t ret_val;
+	__disable_interrupt();
+	ret_val = CAN_SPI_data.data_ready;
+	__enable_interrupt();
+	return ret_val;
 }
