@@ -300,6 +300,9 @@ void can_task(void){
 			CAN_SPI_data.data_ready = 1;
 		}
 		__enable_interrupt();*/
+		if(UCB0STAT & UCOE){
+			issue_warning(WARN_CAN_SPI_OVERRUN);
+		}
 		//State transition
 		if(is_CAN_spi_rx_ready()){
 			can_current_state = INIT_TX_MSG;				//T_CAN9
@@ -1094,6 +1097,7 @@ __interrupt void USCIA0_ISR(void){
  * SPI Rx:
  * SPI Tx:
  */
+/*
 #pragma vector=USCI_B0_VECTOR
 __interrupt void USCIB0_ISR(void){
 	if((UCB0IE & UCRXIE) && (UCB0IFG & UCRXIFG)){				//SPI Rxbuf full interrupt
@@ -1111,8 +1115,28 @@ __interrupt void USCIB0_ISR(void){
 		if(CAN_SPI_data.tx_ptr >= CAN_SPI_data.num_bytes){		//Done transmitting data
 			CAN_SPI_TXINT_DISABLE;							//Disable Tx interrupt
 		}
-	} /*else {
-		issue_warning(WARN_USCIB0_INT_ILLEGAL_FLAG);
+	}
+}*/
+#pragma vector=USCI_B0_VECTOR
+__interrupt void USCIB0_ISR(void){
+	if((UCB0IE & UCRXIE) && (UCB0IFG & UCRXIFG)){				//SPI Rxbuf full interrupt
+		CAN_SPI_data.rx_bytes[CAN_SPI_data.rx_ptr] = UCB0RXBUF;	//Get latest byte from HW
+		CAN_SPI_data.rx_ptr++;									//Flag reset with buffer read
+		if(CAN_SPI_data.rx_ptr >= CAN_SPI_data.num_bytes){		//Done reading data
+			CAN_SPI_CS_DEASSERT;									//Disable CS and disable interrupt
+			CAN_SPI_RXINT_DISABLE;
+			CAN_SPI_data.data_ready = 1;
+		} else {
+			UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
+			CAN_SPI_data.tx_ptr++;
+		}
+	}
+/*	if((UCB0IE & UCTXIE) && (UCB0IFG & UCTXIFG)){
+		UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
+		CAN_SPI_data.tx_ptr++;								//Flag reset with buffer write
+		if(CAN_SPI_data.tx_ptr >= CAN_SPI_data.num_bytes){		//Done transmitting data
+			CAN_SPI_TXINT_DISABLE;							//Disable Tx interrupt
+		}
 	}*/
 }
 

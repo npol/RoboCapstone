@@ -60,7 +60,7 @@ void CAN_SPI_setup(uint8_t idle, uint8_t edge){
 	UCB0CTL1 = UCSSEL_2  |	//Source from SMCLK
 			   UCSWRST;		//Keep USCI in reset
 
-	UCB0BR0 = 250;			//run at 1MHz
+	UCB0BR0 = 25;			//run at 1MHz
 
 	//Enable use of SPI pins MOSI, MISO, SCK
 	P3SEL |= BIT0 + BIT1 + BIT2;
@@ -85,10 +85,12 @@ void init_CAN_SPI_transac(uint8_t *tx_bytes, uint8_t num_bytes){
 		CAN_SPI_data.tx_bytes[i] = tx_bytes[i];
 	}
 	CAN_SPI_data.num_bytes = num_bytes;			//Copy Transaction size to SPI datastructure
-	CAN_SPI_data.tx_ptr = 0;					//Reset pointers
+	CAN_SPI_data.tx_ptr = 1;					//Reset pointers
 	CAN_SPI_data.rx_ptr = 0;
 	CAN_SPI_CS_ASSERT;
-	CAN_SPI_INT_ENABLE;	//Enable SPI Interrupts
+	CAN_SPI_RXINT_ENABLE;
+	UCB0TXBUF = CAN_SPI_data.tx_bytes[0];		//Load first byte
+	//CAN_SPI_INT_ENABLE;	//Enable SPI Interrupts
 	return;
 }
 
