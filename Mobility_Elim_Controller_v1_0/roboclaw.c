@@ -344,6 +344,73 @@ uint8_t driveM12Speed(uint32_t m1Spd, uint32_t m2Spd, uint8_t *buf){
 	return 12;	//Packet size
 }
 
+/* Set Motor 1 Signed speed with acceleration limit
+ * m1Spd: 4-byte speed value in quadrature pulses per second)
+ * buf: character buffer with at least 8 bytes
+ */
+uint8_t driveM1SpeedAccel(uint32_t m1Spd, uint32_t accel, uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_SET_M1_SPEED_ACCEL;
+	buf[2] = (uint8_t)((accel>>24)&0xFF);
+	buf[3] = (uint8_t)((accel>>16)&0xFF);
+	buf[4] = (uint8_t)((accel>>8)&0xFF);
+	buf[5] = (uint8_t)(accel&0xFF);
+	buf[6] = (uint8_t)((m1Spd>>24)&0xFF);
+	buf[7] = (uint8_t)((m1Spd>>16)&0xFF);
+	buf[8] = (uint8_t)((m1Spd>>8)&0xFF);
+	buf[9] = (uint8_t)(m1Spd&0xFF);
+	uint16_t packet_crc = crc16(buf,10);
+	buf[10] = (uint8_t)(packet_crc>>8);
+	buf[11] = (uint8_t)packet_crc;
+	return 12;	//Packet size
+}
+
+/* Set Motor 2 Signed speed with acceleration limit
+ * m2Spd: 4-byte speed value in quadrature pulses per second)
+ * buf: character buffer with at least 8 bytes
+ */
+uint8_t driveM2SpeedAccel(uint32_t m2Spd, uint32_t accel, uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_SET_M2_SPEED_ACCEL;
+	buf[2] = (uint8_t)((accel>>24)&0xFF);
+	buf[3] = (uint8_t)((accel>>16)&0xFF);
+	buf[4] = (uint8_t)((accel>>8)&0xFF);
+	buf[5] = (uint8_t)(accel&0xFF);
+	buf[6] = (uint8_t)((m2Spd>>24)&0xFF);
+	buf[7] = (uint8_t)((m2Spd>>16)&0xFF);
+	buf[8] = (uint8_t)((m2Spd>>8)&0xFF);
+	buf[9] = (uint8_t)(m2Spd&0xFF);
+	uint16_t packet_crc = crc16(buf,10);
+	buf[10] = (uint8_t)(packet_crc>>8);
+	buf[11] = (uint8_t)packet_crc;
+	return 12;	//Packet size
+}
+
+/* Set Signed speed for both motors
+ * m1Spd: 4-byte speed value for motor 1 in quadrature pulses per second)
+ * m2Spd: 4-byte speed value for motor 2 in quadrature pulses per second
+ */
+uint8_t driveM12SpeedAccel(uint32_t m1Spd, uint32_t m2Spd, uint32_t accel, uint8_t *buf){
+	buf[0] = RC_ADDR;
+	buf[1] = RC_SET_M12_SPEED_ACCEL;
+	buf[2] = (uint8_t)((accel>>24)&0xFF);
+	buf[3] = (uint8_t)((accel>>16)&0xFF);
+	buf[4] = (uint8_t)((accel>>8)&0xFF);
+	buf[5] = (uint8_t)(accel&0xFF);
+	buf[6] = (uint8_t)((m1Spd>>24)&0xFF);
+	buf[7] = (uint8_t)((m1Spd>>16)&0xFF);
+	buf[8] = (uint8_t)((m1Spd>>8)&0xFF);
+	buf[9] = (uint8_t)(m1Spd&0xFF);
+	buf[10] = (uint8_t)((m2Spd>>24)&0xFF);
+	buf[11] = (uint8_t)((m2Spd>>16)&0xFF);
+	buf[12] = (uint8_t)((m2Spd>>8)&0xFF);
+	buf[13] = (uint8_t)(m2Spd&0xFF);
+	uint16_t packet_crc = crc16(buf,14);
+	buf[14] = (uint8_t)(packet_crc>>8);
+	buf[15] = (uint8_t)packet_crc;
+	return 16;	//Packet size
+}
+
 /* Datasheet provided function to calculate CRC
  * For transmitted packets: CRC of address and command except CRC
  * For recieved packets: CRC of all bytes recieved (except CRC), and include sent address and command byte

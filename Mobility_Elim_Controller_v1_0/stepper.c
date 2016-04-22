@@ -269,8 +269,8 @@ void stepper_setup(void){
 	TA0CCR1 = STEP_TIME>>2;						//50% duty
 	TA0CTL = TASSEL_2 + MC_0 + TACLR + ID_3;	//SMCLK, off, clear TAR, div8
 	TA0EX0 = TAIDEX_7;
-	TA0CCTL0 = OUTMOD_3;						//Set/reset
-	TA2CCTL0 = CCIE;                          	// CCR0 interrupt enabled
+	TA0CCTL0 = CCIE;						//CCR0 interrupt enabled
+	TA0CCTL1 = OUTMOD_3;					//Set/reset
 	return;
 }
 

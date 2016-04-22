@@ -1177,7 +1177,11 @@ void debug_task(void){
 				if(RC_async_request.rc_request_flag){	//Wait for open request buffer
 					break;
 				} else {	//Buffer is open
+#ifdef ACCEL
+					RC_async_request.tx_nbytes = driveM1SpeedAccel(pcmd_data_long[0],ACCEL_LIMIT, RC_async_request.tx_bytes);
+#else
 					RC_async_request.tx_nbytes = driveM1Speed(pcmd_data_long[0],RC_async_request.tx_bytes);
+#endif
 					RC_async_request.rx_nbytes = 1;
 					RC_async_request.rc_request_flag = 1;
 					pcmd_data1 = 1;	//Flag to indicate command has been sent
@@ -1217,7 +1221,11 @@ void debug_task(void){
 				if(RC_async_request.rc_request_flag){	//Wait for open request buffer
 					break;
 				} else {	//Buffer is open
+#ifdef ACCEL
+					RC_async_request.tx_nbytes = driveM2SpeedAccel(pcmd_data_long[0],ACCEL_LIMIT, RC_async_request.tx_bytes);
+#else
 					RC_async_request.tx_nbytes = driveM2Speed(pcmd_data_long[0],RC_async_request.tx_bytes);
+#endif
 					RC_async_request.rx_nbytes = 1;
 					RC_async_request.rc_request_flag = 1;
 					pcmd_data1 = 1;	//Flag to indicate command has been sent

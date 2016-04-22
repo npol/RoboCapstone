@@ -18,6 +18,8 @@
 #include "utils.h"
 //#include "string.h"
 
+#define ACCEL_LIMIT 1000
+
 #define RC_ADDR 0x80
 
 #define RC_CMD_DRIVE_FW_M1 0
@@ -46,6 +48,9 @@
 #define RC_SET_M1_SPEED 35
 #define RC_SET_M2_SPEED 36
 #define RC_SET_M12_SPEED 37
+#define RC_SET_M1_SPEED_ACCEL 38
+#define RC_SET_M2_SPEED_ACCEL 39
+#define RC_SET_M12_SPEED_ACCEL 40
 
 #define RC_STAT_NORM			0x0000
 #define RC_STAT_M1_OVERCURRENT	0x0001
@@ -89,6 +94,9 @@ uint8_t RCgetEnc2Speed(uint8_t *buf);
 uint8_t driveM1Speed(uint32_t m2Spd, uint8_t *buf);
 uint8_t driveM2Speed(uint32_t m2Spd, uint8_t *buf);
 uint8_t driveM12Speed(uint32_t m1Spd, uint32_t m2Spd, uint8_t *buf);
+uint8_t driveM1SpeedAccel(uint32_t m1Spd, uint32_t accel, uint8_t *buf);
+uint8_t driveM2SpeedAccel(uint32_t m2Spd, uint32_t accel, uint8_t *buf);
+uint8_t driveM12SpeedAccel(uint32_t m1Spd, uint32_t m2Spd, uint32_t accel, uint8_t *buf);
 
 uint16_t crc16(uint8_t *packet, uint8_t nBytes);
 
