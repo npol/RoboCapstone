@@ -829,7 +829,7 @@ void can_task(void){
 		break;
 	case INIT_READ_MSG0:				//STATE_CAN10
 		//State action
-		mcp2515_read_mult_registers_nonblock_init(MCP2515_RXB0CTRL,14);	//Read 0x60 to 0x6D
+		mcp2515_read_rxbuf0_nonblock_init(MCP2515_RXB0CTRL,13);	//Read 0x60 to 0x6D
 		//State transition
 		can_current_state = WAIT_READ_MSG0;					//T_CAN19
 		break;
@@ -860,9 +860,9 @@ void can_task(void){
 	case READ_DATA_MSG0:				//STATE_CAN12
 		//State action
 		//Get data
-		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
+		resp_size = mcp2515_read_rxbuf0_nonblock_getdata(buf);
 		//Issue relevant commands
-		//TODO: Issue revlevant commands
+		can_process_msg(buf, resp_size);
 		dbg_uart_send_string("rx msg0",7);
 		//Clear interrupt to release buffer
 		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX0IF,0x00);
@@ -874,7 +874,7 @@ void can_task(void){
 		//Get data
 		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
 		//Issue relevant commands
-		//TODO
+		can_process_msg(buf, resp_size);
 		dbg_uart_send_string("rx msg1",7);
 		//Clear interrupt to release buffer
 		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX1IF,0x00);
@@ -1885,20 +1885,16 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"led6 off",7)==0) && (debug_cmd_buf_ptr == 8)){
 			//>led6 off
 			led_P4_7_off();
-/*		} else if((strncmp(debug_cmd_buf,"button get",10)==0) && (debug_cmd_buf_ptr == 10)){
-			//>button get
-			response_size = button_get(response_buf);
-			uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"can regread",11)==0) && (debug_cmd_buf_ptr == 16)){
 			//>can regread <register in hex>
 			//>can regread 0x00
 			response_size = debug_mcp2515_read_reg(debug_cmd_buf,response_buf);
-			uart_send_string(response_buf,response_size);
+			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"can regwrite",12)==0) && (debug_cmd_buf_ptr == 22)){
 			//>can regwrite <register in hex> <data in hex>
 			//>can regwrite 0x00 0x00
 			response_size = debug_mcp2515_write_reg(debug_cmd_buf,response_buf);
-			uart_send_string(response_buf,response_size);*/
+			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P1 get",6)==0) && (debug_cmd_buf_ptr == 6)){
 			//>P1 get
 			response_size = P1_get(response_buf);
@@ -2162,6 +2158,15 @@ void debug_task(void){
 			can_dbg = 0;
 		} else if((strncmp(debug_cmd_buf,"can tx2",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//only do when can_dbg = 1, and clear can_dbg after this command
+			if(!can_tx_req.tx_request){
+				can_tx_req.msg_id = 0x0000;
+				can_tx_req.length = 0;
+				can_tx_req.tx_request = 1;
+				dbg_uart_send_string("ok",2);
+			} else {
+				dbg_uart_send_string("fail",4);
+			}
+		} else if((strncmp(debug_cmd_buf,"can test",8)==0) && (debug_cmd_buf_ptr == 8)){
 			if(!can_tx_req.tx_request){
 				can_tx_req.msg_id = 0x0000;
 				can_tx_req.length = 0;

@@ -153,6 +153,7 @@ uint8_t adc_data_ready = 0x00;	//Set bit indicates new conversion (set by adc ta
 
 /** CAN task globals **/
 void can_task(void);
+void can_process_msg(uint8_t *buf, uint8_t buf_size);
 
 typedef enum  {CAN_IDLE,
 				INIT_CHECK_ERR_REGS,
@@ -397,7 +398,7 @@ void can_task(void){
 		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
 		//Issue relevant commands
 		dbg_uart_send_string("rx msg0",7);
-		//can_process_msg(buf, resp_size);
+		can_process_msg(buf, resp_size);
 		//Clear interrupt to release buffer
 		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX0IF,0x00);
 		//State transition
@@ -409,7 +410,7 @@ void can_task(void){
 		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
 		//Issue relevant commands
 		dbg_uart_send_string("rx msg1",7);
-		//can_process_msg(buf, resp_size);
+		can_process_msg(buf, resp_size);
 		//Clear interrupt to release buffer
 		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX1IF,0x00);
 		//State transition
@@ -479,10 +480,12 @@ void can_tx_message_buf0(uint16_t sid, uint8_t len, uint8_t *data){
  */
 void can_process_msg(uint8_t *buf, uint8_t buf_size){
 	uint16_t dest_addr = buf[2]>>5;
+	uint16_t m1spd;
+	uint16_t m2spd;
 	dest_addr |= buf[1] << 3;
-	switch(buf[6]){
-	case 0x100:
-
+	switch(dest_addr){
+	case 0x000:	//Test message
+		dbg_uart_send_string("Rx CAN MSG",10);
 		break;
 	}
 }
@@ -1068,6 +1071,15 @@ void debug_task(void){
 			can_dbg = 0;
 		} else if((strncmp(debug_cmd_buf,"can tx2",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//only do when can_dbg = 1, and clear can_dbg after this command
+			if(!can_tx_req.tx_request){
+				can_tx_req.msg_id = 0x0000;
+				can_tx_req.length = 0;
+				can_tx_req.tx_request = 1;
+				dbg_uart_send_string("ok",2);
+			} else {
+				dbg_uart_send_string("fail",4);
+			}
+		} else if((strncmp(debug_cmd_buf,"can test",8)==0) && (debug_cmd_buf_ptr == 8)){
 			if(!can_tx_req.tx_request){
 				can_tx_req.msg_id = 0x0000;
 				can_tx_req.length = 0;

@@ -24,6 +24,8 @@ void mcp2515_bitmod_register_nonblock_init(uint8_t reg_addr, uint8_t mask, uint8
 void mcp2515_bitmod_register_nonblock_end(void);
 void mcp2515_rts_nonblock_init(uint8_t buffer);
 void mcp2515_rts_nonblock_end(void);
+void mcp2515_read_rxbuf0_nonblock_init(uint8_t start_reg_addr, uint8_t num_regs);
+uint8_t mcp2515_read_rxbuf0_nonblock_getdata(uint8_t *buf);
 
 #define CAN_RX0BUF_INT (!(P2IN&BIT5))
 #define CAN_RX1BUF_INT (!(P2IN&BIT6))

@@ -104,6 +104,32 @@ uint8_t mcp2515_read_mult_registers_nonblock_getdata(uint8_t *buf){
 	return num_regs-2;
 }
 
+/* Start read of multiple registers
+ * SPI transaction:
+ * [ RD (0x03), ADDR, Data1, Data2,...]
+ * Max 14 registers
+ */
+void mcp2515_read_rxbuf0_nonblock_init(uint8_t start_reg_addr, uint8_t num_regs){
+	uint8_t buf[16] = {0x90,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+	buf[1] = start_reg_addr;
+	init_CAN_SPI_transac(buf,num_regs+1);
+	return;
+}
+
+/* End read of multiple registers
+ * register reads are stored in buf
+ * returns number of registers read
+ */
+uint8_t mcp2515_read_rxbuf0_nonblock_getdata(uint8_t *buf){
+	uint8_t data_buf[16];
+	uint8_t num_regs = get_CAN_SPI_rx_data(data_buf);
+	uint8_t i;
+	for(i=1; i<num_regs; i++){
+		buf[i-1] = data_buf[i];
+	}
+	return num_regs-1;
+}
+
 /* Write single register from MCP2515
  * SPI transaction:
  * [ WR (0x02) , ADDR, DATA (TX) ]
