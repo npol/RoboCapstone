@@ -79,7 +79,6 @@ def dec2ascii(velocity):
         return "%08X" % (0xFFFFFFFF - (abs(velocity) - 1))
 
 def main():
-    """
     pygame.init()
     print "%d joystick(s) found" % joystick.get_count()
     if joystick.get_count() == 0 : return
@@ -90,12 +89,10 @@ def main():
     print "[Joystick] %d balls" % stick.get_numballs()
     print "[Joystick] %d buttons" % stick.get_numbuttons()
     print "[Joystick] %d hats" % stick.get_numhats()
-    """
     ser = serial.Serial("/dev/ttyUSB0",115200,timeout=0)
     ser.flushInput()
     ser.flushOutput()
     while True:
-        """
         #Get joystick state
         pygame.event.pump()
         axis_x = toByte(stick.get_axis(0))-128
@@ -107,9 +104,11 @@ def main():
         scale = float(128+cap(axis_z,-128,127))
         #print str(axis_x)+" "+str(axis_y)+" "+str(axis_z)
         #print str(left)+" "+str(right)
-        """
-        m1speed = 0x01234567
-        m2speed = 0x89ABCDEF
+        m1speed = cap(int(left*scale),-1200,1200)
+        m2speed = cap(int(right*scale),-1200,1200)
+        print "speeds"
+        print m1speed
+        print m2speed
         #Send values to motors
         ser.write(chr(0x7E))#Start delimiter
         ser.write(chr(0x09))#Size
@@ -122,49 +121,17 @@ def main():
         ser.write(chr((m2speed>>16)&0xFF))#M2[23:16]
         ser.write(chr((m2speed>>8)&0xFF))#M2[15:8]
         ser.write(chr(m2speed&0xFF))#M2[7:0]
-        sleep(10)
+        sleep(0.05)
         """
-        ser.write(chr(13))  #CR
-        #ser.write(chr(10))  #LF to get new terminal prompt
-        ser.write('r')
-        ser.write('c')
-        ser.write(' ')
-        ser.write('v')
-        ser.write('1')
-        ser.write(' ')
-        ser.write(dec2ascii(cap(int(left*scale),-1200,1200)))
-        ser.write(chr(13))  #CR
-        sleep(0.05)
-        readBytesRaw(21,ser)
-        temp = readBytesRaw(3,ser)
-        readBytesRaw(20,ser)
-        #print ser.read(50)
-        if(temp != [97,99,107]):
-            print "Packet Rx error1"
-        ser.write(chr(13))  #CR
-        ser.write('r')
-        ser.write('c')
-        ser.write(' ')
-        ser.write('v')
-        ser.write('2')
-        ser.write(' ')
-        ser.write(dec2ascii(cap(int(right*scale),-1200,1200)))
-        ser.write(chr(13))  #CR
-        sleep(0.05)
-        readBytesRaw(21,ser)
-        temp = readBytesRaw(3,ser)
-        readBytesRaw(20,ser)
-        if(temp != [97,99,107]):
-            print "Packet Rx error2"
-        #print ser.read(50)
-        #Get encoder values
+        #Get encoder packet if sent
+        if(ser.read(1)
         ser.write('encoders')
         ser.write(chr(13))  #CR
         sleep(0.05)
         readBytesRaw(12,ser)
         print ser.read(19)
         readBytesRaw(20,ser)
-"""
+        """
 
 
 if __name__ == '__main__':

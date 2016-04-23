@@ -81,6 +81,7 @@ uint8_t exit_debug = 0;
 #define PC_START_DELIMITER 0x7E
 #define PC_DEBUG_DELIMITER '+'
 #define ENCODER_DELIMITER 0x55
+#define MSG_END_DELIMITER 0x33
 
 /** END PC interface task globals **/
 
@@ -434,7 +435,8 @@ void roboclaw_task(void){
 			resp_buf[7] = buf[1];
 			resp_buf[8] = buf[2];
 			resp_buf[9] = buf[3];
-			dbg_uart_send_string(resp_buf,10);
+			resp_buf[10] = MSG_END_DELIMITER;
+			dbg_uart_send_string(resp_buf,11);
 		}
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV21
@@ -808,6 +810,9 @@ void pc_task(void){
 		break;
 	case PC_END_CMD:
 		//State action
+		if(RC_async_request.rx_bytes[0] != 0xFF){
+			issue_warning(WARN_BAD_MOTOR_PACKET);
+		}
 		RC_async_request.rc_data_ready_flag = 0;
 		RC_async_request.rc_request_flag = 0;
 		//State transition
@@ -848,7 +853,8 @@ void process_cmd(uint8_t *buf, uint8_t buf_size){
 		m2spd |= (uint32_t)buf[6] <<16;
 		m2spd |= (uint32_t)buf[7] << 8;
 		m2spd |= (uint32_t)buf[8];
-		driveM12SpeedAccel(m1spd, m2spd, ACCEL_LIMIT, RC_async_request.tx_bytes);
+		RC_async_request.tx_nbytes = driveM12Speed(m1spd,m2spd,RC_async_request.tx_bytes);
+		//driveM12SpeedAccel(m1spd, m2spd, ACCEL_LIMIT, RC_async_request.tx_bytes);
 		RC_async_request.rx_nbytes = 1;
 		RC_async_request.rc_request_flag = 1;
 		break;
@@ -1134,11 +1140,6 @@ void debug_task(void){
 				if(RC_async_request.rc_request_flag){	//Wait for open request buffer
 					break;
 				} else {	//Buffer is open
-					__disable_interrupt();
-					if(RC_UART_data.rx_head != RC_UART_data.rx_tail){
-						dbg_uart_send_byte('A');
-					}
-					__enable_interrupt();
 					RC_async_request.tx_nbytes = driveM1Power(pcmd_data0,RC_async_request.tx_bytes);
 					RC_async_request.rx_nbytes = 1;
 					RC_async_request.rc_request_flag = 1;
