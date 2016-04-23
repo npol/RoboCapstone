@@ -735,6 +735,7 @@ void pc_task(void){
 		if(rx_byte == PC_START_DELIMITER){
 			pc_current_state = PC_INIT_BUF;
 		} else if(debug_delimiter_count == 3){
+			debug_delimiter_count = 0;
 			pc_current_state = PC_DEBUG;
 		} else {
 			pc_current_state = PC_IDLE;
@@ -835,20 +836,18 @@ void pc_task(void){
  *
  */
 void process_cmd(uint8_t *buf, uint8_t buf_size){
-	uint16_t dest_addr = buf[2]>>5;
-	uint16_t m1spd;
-	uint16_t m2spd;
-	dest_addr |= buf[1] << 3;
+	uint32_t m1spd;
+	uint32_t m2spd;
 	switch(buf[0]){
 	case 0x30:	//Motor velocities
-		m1spd = (uint32_t)buf[6] << 24;
-		m1spd |= (uint32_t)buf[7] <<16;
-		m1spd |= (uint32_t)buf[8] << 8;
-		m1spd |= (uint32_t)buf[9];
-		m2spd = (uint32_t)buf[10] << 24;
-		m2spd |= (uint32_t)buf[11] <<16;
-		m2spd |= (uint32_t)buf[12] << 8;
-		m2spd |= (uint32_t)buf[13];
+		m1spd = (uint32_t)buf[1] << 24;
+		m1spd |= (uint32_t)buf[2] <<16;
+		m1spd |= (uint32_t)buf[3] << 8;
+		m1spd |= (uint32_t)buf[4];
+		m2spd = (uint32_t)buf[5] << 24;
+		m2spd |= (uint32_t)buf[6] <<16;
+		m2spd |= (uint32_t)buf[7] << 8;
+		m2spd |= (uint32_t)buf[8];
 		driveM12SpeedAccel(m1spd, m2spd, ACCEL_LIMIT, RC_async_request.tx_bytes);
 		RC_async_request.rx_nbytes = 1;
 		RC_async_request.rc_request_flag = 1;
