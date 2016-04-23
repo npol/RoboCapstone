@@ -17,8 +17,6 @@
 #include "rc_uart_uscia1.h"
 #include "drill.h"
 #include "stepper.h"
-#include "MCP2515.h"
-#include "can_spi_uscib0.h"
 
 /** Debug task macros and globals **/
 void debug_task(void);
@@ -53,53 +51,38 @@ volatile uint8_t err_log_ptr = 0;
 volatile uint8_t err_flag = 0;
 /** END Warning/Error code buffers and flags **/
 
-/** CAN task globals **/
-void can_task(void);
-void can_process_msg(uint8_t *buf, uint8_t buf_size);
+/** PC interface task globals **/
+void process_cmd(uint8_t *buf, uint8_t buf_size);
+void pc_task(void);
+void pc_setup(void);
+uint8_t check_timeout(void);
+void reset_timer(void);
 
-typedef enum  {CAN_IDLE,
-				INIT_CHECK_ERR_REGS,
-				WAIT_CHECK_ERR_REGS,
-				READ_ERR_REGS,
-				INIT_SETUP_TX,
-				WAIT_SETUP_TX,
-				INIT_TX_MSG,
-				WAIT_TX_MSG,
-				INIT_CHK_MSG,
-				WAIT_CHK_MSG,
-				READ_CHK_MSG,
-				INIT_READ_MSG0,
-				WAIT_READ_MSG0,
-				READ_DATA_MSG0,
-				WAIT_MSG0_CLEAR,
-				END_MSG0,
-				INIT_READ_MSG1,
-				WAIT_READ_MSG1,
-				READ_DATA_MSG1,
-				WAIT_MSG1_CLEAR,
-				END_MSG1
-				} can_state_t;
-volatile can_state_t can_current_state = CAN_IDLE;
-#define CAN_RX_BUF_SIZE 8
-uint8_t can_rx_buf[CAN_RX_BUF_SIZE];
-uint8_t can_rx_buf_head = 0;
-uint8_t can_rx_buf_tail = 0;
-uint8_t can_dbg = 0;
+typedef enum  {PC_IDLE,
+				PC_INIT_BUF,
+				PC_WAIT_SIZE,
+				PC_GET_SIZE,
+				PC_LOAD_BUF,
+				PC_EXEC_CMD,
+				PC_WAIT_RC_AVAIL,
+				PC_WAIT_CMD,
+				PC_END_CMD,
+				PC_DEBUG
+				} pc_state_t;
+volatile pc_state_t pc_current_state = PC_IDLE;
 
-struct CAN_tx_req_struct{
-	uint8_t tx_request;			//Set to indicate request, cleared by CAN SM when transmitted
-	uint16_t msg_id;			//11-bit standard identifier
-	uint8_t length;				//Number of bytes to transmit
-	uint8_t data[8];			//Data bytes
-};
-struct CAN_tx_req_struct can_tx_req = {
-		.tx_request = 0,
-		.msg_id = 0,
-		.length = 0,
-		.data = {0}
-};
+#define PC_CMD_BUF_SIZE 16
+#define PC_RESPONSE_BUF_SIZE 64
+uint8_t pc_cmd_buf[PC_CMD_BUF_SIZE];
+uint8_t pc_cmd_buf_ptr = 0;
+uint8_t pc_cmd_size = 0;
+uint8_t exit_debug = 0;
 
-/** END CAN task globals **/
+#define PC_START_DELIMITER 0x7E
+#define PC_DEBUG_DELIMITER '+'
+#define ENCODER_DELIMITER 0x55
+
+/** END PC interface task globals **/
 
 /** Roboclaw task globals **/
 
@@ -279,18 +262,16 @@ int main(void) {
 	stepper_setup();
 	roboclaw_setup();
 	monitor_setup();
-	CAN_SPI_setup(0, 1);	//Idle Low, out on falling edge
     // Enable Interrupts
     __bis_SR_register(GIE);
-    setup_mcp2515();
     while(1)
     {
-        debug_task();
+        //debug_task();
+    	pc_task();
         monitor_task();
         roboclaw_task();
         drill_task();
         stepper_task();
-        can_task();
     }
 }
 
@@ -299,12 +280,13 @@ int main(void) {
 /** Roboclaw Task Functions **/
 
 void roboclaw_task(void){
-	static uint16_t timer_tics = 0;		//Number of TA2 tics to time encoders/check
-	static uint8_t run_enc_flag = 0;	//Set when encoders should be checked
-	static uint8_t run_check_flag = 0;	//Set when Check routine must run
-	static uint16_t wait_cntr = 0;		//counter to prevent hang while waiting for failed packet
+	volatile static uint16_t timer_tics = 0;		//Number of TA2 tics to time encoders/check
+	volatile static uint8_t run_enc_flag = 0;	//Set when encoders should be checked
+	volatile static uint8_t run_check_flag = 0;	//Set when Check routine must run
+	volatile static uint16_t wait_cntr = 0;		//counter to prevent hang while waiting for failed packet
 	uint8_t pckt_size = 0;				//Size of transmitted packet
 	uint8_t buf[32];					//Buffer for transmitted/recieved packet
+	uint8_t resp_buf[16];
 	uint16_t mbatt, lbatt, m1_curr, m2_curr, rc_temp;
 	switch(rcCurrState){
 	case RC_WAIT:
@@ -434,13 +416,26 @@ void roboclaw_task(void){
 		break;
 	case SEND_ENC_CAN:
 		//State action
-		//TODO: Send CAN message with encoder values
 		//Get encoder 2 data
 		pckt_size = rc_uart_get_string(buf,7);
 		if(!pckt_size){
 			issue_warning(WARN_RC_SM_ENC2_DATA_FAIL);
 		}
 		enc2_count = ((uint32_t)buf[0]<<24)|((uint32_t)buf[1]<<16)|((uint32_t)buf[2]<<8)|((uint32_t)buf[3]);
+		//Send encoder data to PC
+		if(pc_current_state != PC_DEBUG){
+			resp_buf[0] = ENCODER_DELIMITER;
+			resp_buf[1] = 8;	//Packet size
+			resp_buf[2] = (uint8_t)(enc1_count >> 24);
+			resp_buf[3] = (uint8_t)(enc1_count >> 16);
+			resp_buf[4] = (uint8_t)(enc1_count >> 8);
+			resp_buf[5] = (uint8_t)(enc1_count);
+			resp_buf[6] = buf[0];
+			resp_buf[7] = buf[1];
+			resp_buf[8] = buf[2];
+			resp_buf[9] = buf[3];
+			dbg_uart_send_string(resp_buf,10);
+		}
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV21
 		break;
@@ -702,237 +697,150 @@ void roboclaw_task(void){
 
 /** END Roboclaw Task Functions **/
 
-/** CAN task functions **/
-void can_task(void){
-	uint8_t action_complete;
-	uint8_t buf[16];
-	uint8_t resp_size = 0;
-	uint8_t i;
-	static uint8_t wait_count = 0;
-	switch(can_current_state){
-	case CAN_IDLE:						//STATE_CAN0
+/** PC interface task functions **/
+void pc_setup(void){
+	//Initialize timeout timer
+	TA1CTL = TASSEL_2 + ID_3 + MC_1; //SMCLK div 8 Up mode
+	TA1CCR0 = 31250;	//10ms
+}
+
+uint8_t check_timeout(void){
+	if(TA1CCTL0 & CCIFG){	//Check interrupt flag
+		TA1CCTL0 &= ~CCIFG;	//Clear flag
+		return 1;
+	}
+	return 0;
+}
+
+void reset_timer(void){
+	TA1CTL |= TACLR;
+	TA1CCTL0 &= ~CCIFG;
+}
+
+void pc_task(void){
+	uint8_t rx_byte = 0;
+	volatile static uint8_t debug_delimiter_count = 0;
+	switch(pc_current_state){
+	case PC_IDLE:
+		//State action
+		if(is_dbg_uart_rx_data_ready()){
+			rx_byte = dbg_uart_get_byte();
+			if(rx_byte == PC_DEBUG_DELIMITER){
+				debug_delimiter_count++;
+			} else {
+				debug_delimiter_count = 0;
+			}
+		}
+		//State transition
+		if(rx_byte == PC_START_DELIMITER){
+			pc_current_state = PC_INIT_BUF;
+		} else if(debug_delimiter_count == 3){
+			pc_current_state = PC_DEBUG;
+		} else {
+			pc_current_state = PC_IDLE;
+		}
+		break;
+	case PC_INIT_BUF:
+		//State action
+		reset_timer();
+		pc_cmd_buf_ptr = 0;
+		pc_cmd_size = 0;
+		//State transition
+		pc_current_state = PC_WAIT_SIZE;
+		break;
+	case PC_WAIT_SIZE:
 		//State action: no action
 		//State transition
-		if(!can_dbg && CAN_GEN_INT){
-			can_current_state = INIT_CHECK_ERR_REGS;		//T_CAN0
-		} else if(!can_dbg && CAN_RX0BUF_INT){
-			can_current_state = INIT_READ_MSG0;				//T_CAN18
-		} else if(!can_dbg && CAN_RX1BUF_INT){
-			can_current_state = INIT_READ_MSG1;				//T_CAN26
-		} else if(!can_dbg && can_tx_req.tx_request){	//TODO: complete can request struct/buffer
-			can_current_state = INIT_SETUP_TX;				//T_CAN6
+		if(check_timeout()){
+			pc_current_state = PC_IDLE;
+		} else if(is_dbg_uart_rx_data_ready()){
+			reset_timer();
+			pc_current_state = PC_GET_SIZE;
 		} else {
-			can_current_state = CAN_IDLE;					//T_CAN5
+			pc_current_state = PC_WAIT_SIZE;
 		}
 		break;
-	case INIT_CHECK_ERR_REGS:			//STATE_CAN1
+	case PC_GET_SIZE:
 		//State action
-		mcp2515_read_mult_registers_nonblock_init(MCP2515_CANINTF,2);	//Read 0x2C, 0x2D
+		pc_cmd_size = dbg_uart_get_byte();	//Get size
 		//State transition
-		can_current_state = WAIT_CHECK_ERR_REGS;			//T_CAN1
+		pc_current_state = PC_LOAD_BUF;
+	case PC_LOAD_BUF:
+		//State action
+		if(is_dbg_uart_rx_data_ready()){
+			reset_timer();
+			pc_cmd_buf[pc_cmd_buf_ptr] = dbg_uart_get_byte();
+			pc_cmd_buf_ptr++;
+		}
+		//State transition
+		if(check_timeout()){
+			pc_current_state = PC_IDLE;
+		} else if((pc_cmd_size == pc_cmd_buf_ptr)){
+			pc_current_state = PC_WAIT_RC_AVAIL;
+		} else {
+			pc_current_state = PC_LOAD_BUF;
+		}
 		break;
-	case WAIT_CHECK_ERR_REGS:			//STATE_CAN2
+	case PC_WAIT_RC_AVAIL:
 		//State action: no action
 		//State transition
-		if(is_CAN_spi_rx_ready()){
-			can_current_state = READ_ERR_REGS;				//T_CAN3
+		if(RC_async_request.rc_request_flag){
+			pc_current_state = PC_WAIT_RC_AVAIL;
 		} else {
-			can_current_state = WAIT_CHECK_ERR_REGS;		//T_CAN2
+			pc_current_state = PC_EXEC_CMD;
 		}
-		break;
-	case READ_ERR_REGS:					//STATE_CAN3
+	case PC_EXEC_CMD:
 		//State action
-		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
-		//Check EFLG error source
-		if(buf[1] & MCP2515_RX1OVR)
-			issue_warning(WARN_CAN_RX1OVR);
-		if(buf[1] & MCP2515_RX0OVR) issue_warning(WARN_CAN_RX0OVR);
-		if(buf[1] & MCP2515_TXBO) issue_warning(WARN_CAN_TXBO);
-		if(buf[1] & MCP2515_TXEP) issue_warning(WARN_CAN_TXEP);
-		if(buf[1] & MCP2515_RXEP) issue_warning(WARN_CAN_RXEP);
-		if(buf[1] & MCP2515_TXWAR) issue_warning(WARN_CAN_TXWAR);
-		if(buf[1] & MCP2515_RXWAR) issue_warning(WARN_CAN_RXWAR);
-		if(buf[1] & MCP2515_EWARN) issue_warning(WARN_CAN_EWARN);
+		//Send motor velocities
+		process_cmd(pc_cmd_buf,pc_cmd_size);
 		//State transition
-		can_current_state = CAN_IDLE;						//T_CAN4
+		pc_current_state = PC_WAIT_CMD;
 		break;
-	case INIT_SETUP_TX:					//STATE_CAN4
-		//State action
-		buf[0] = MCP2515_TXP_3;
-		buf[1] = (uint8_t)(can_tx_req.msg_id >> 3);
-		buf[2] = (uint8_t)(can_tx_req.msg_id << 5);
-		buf[3] = 0;
-		buf[4] = 0;
-		buf[5] = can_tx_req.length;
-		for(i=0; i<can_tx_req.length; i++){
-			buf[6+i] = can_tx_req.data[i];
-		}
-		mcp2515_write_mult_registers_nonblock_init(MCP2515_TXB0CTRL, 14, buf);
-		//State transition
-		can_current_state = WAIT_SETUP_TX;					//T_CAN7
-		break;
-	case WAIT_SETUP_TX:					//STATE_CAN5
+	case PC_WAIT_CMD:
 		//State action: none
 		//State transition
-		if(is_CAN_spi_rx_ready()){
-			can_current_state = INIT_TX_MSG;				//T_CAN9
+		if(RC_async_request.rc_data_ready_flag){
+			pc_current_state = PC_END_CMD;
 		} else {
-			can_current_state = WAIT_SETUP_TX;				//T_CAN8
+			pc_current_state = PC_WAIT_CMD;
 		}
 		break;
-	case INIT_TX_MSG:					//STATE_CAN6
+	case PC_END_CMD:
 		//State action
-		mcp2515_write_mult_registers_nonblock_end();
-		//Send command to send message
-		mcp2515_rts_nonblock_init(0);
+		RC_async_request.rc_data_ready_flag = 0;
+		RC_async_request.rc_request_flag = 0;
 		//State transition
-		can_current_state = WAIT_TX_MSG;					//T_CAN10
+		pc_current_state = PC_IDLE;
 		break;
-	case WAIT_TX_MSG:					//STATE_CAN7
-		//State action: no action
+	case PC_DEBUG:
+		//State action
+		debug_task();
 		//State transition
-		if(is_CAN_spi_rx_ready()){
-			can_current_state = INIT_CHK_MSG;				//T_CAN12
+		if(exit_debug){
+			exit_debug = 0;
+			pc_current_state = PC_IDLE;
 		} else {
-			can_current_state = WAIT_TX_MSG;				//T_CAN11
+			pc_current_state = PC_DEBUG;
 		}
-		break;
-	case INIT_CHK_MSG:					//STATE_CAN8
-		//State action
-		mcp2515_rts_nonblock_end();
-		mcp2515_read_mult_registers_nonblock_init(MCP2515_TXB0CTRL, 1);
-		//State transition
-		can_current_state = WAIT_CHK_MSG;					//T_CAN13
-		break;
-	case WAIT_CHK_MSG:					//STATE_CAN9
-		//State action: no action
-		//State transition
-		if(is_CAN_spi_rx_ready()){
-			can_current_state = READ_CHK_MSG;				//T_CAN15
-		} else {
-			can_current_state = WAIT_CHK_MSG;				//T_CAN14
-		}
-		break;
-	case READ_CHK_MSG:					//STATE_CAN20
-		//State action
-		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
-		if(buf[0] & MCP2515_ABTF) issue_warning(WARN_CAN_TX_ABTF);
-		if(buf[0] & MCP2515_TXERR) issue_warning(WARN_CAN_TX_TXERR);
-		if(buf[0] & MCP2515_TXREQ) issue_warning(WARN_CAN_TXREQ);
-		//State transition
-		if(buf[0] & MCP2515_MLOA){
-			can_current_state = INIT_TX_MSG;					//T_CAN16
-		} else {
-			can_tx_req.tx_request = 0;
-			can_current_state = CAN_IDLE;						//T_CAN17
-		}
-		break;
-	case INIT_READ_MSG0:				//STATE_CAN10
-		//State action
-		mcp2515_read_rxbuf0_nonblock_init(MCP2515_RXB0CTRL,13);	//Read 0x60 to 0x6D
-		//State transition
-		can_current_state = WAIT_READ_MSG0;					//T_CAN19
-		break;
-	case INIT_READ_MSG1:				//STATE_CAN15
-		//State action
-		mcp2515_read_mult_registers_nonblock_init(MCP2515_RXB1CTRL,14);	//Read 0x70 to 0x7D
-		//State transition
-		can_current_state = WAIT_READ_MSG1;					//T_CAN27
-		break;
-	case WAIT_READ_MSG0:				//STATE_CAN11
-		//State action: no action
-		//State transition
-		if(is_CAN_spi_rx_ready()){
-			can_current_state = READ_DATA_MSG0;				//T_CAN21
-		} else {
-			can_current_state = WAIT_READ_MSG0;				//T_CAN20
-		}
-		break;
-	case WAIT_READ_MSG1:				//STATE_CAN16
-		//State action: no action
-		//State transition
-		if(is_CAN_spi_rx_ready()){
-			can_current_state = READ_DATA_MSG1;				//T_CAN29
-		} else {
-			can_current_state = WAIT_READ_MSG1;				//T_CAN28
-		}
-		break;
-	case READ_DATA_MSG0:				//STATE_CAN12
-		//State action
-		//Get data
-		resp_size = mcp2515_read_rxbuf0_nonblock_getdata(buf);
-		//Issue relevant commands
-		can_process_msg(buf, resp_size);
-		dbg_uart_send_string("rx msg0",7);
-		//Clear interrupt to release buffer
-		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX0IF,0x00);
-		//State transition
-		can_current_state = WAIT_MSG0_CLEAR;				//T_CAN22
-		break;
-	case READ_DATA_MSG1:				//STATE_CAN17
-		//State action
-		//Get data
-		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
-		//Issue relevant commands
-		can_process_msg(buf, resp_size);
-		dbg_uart_send_string("rx msg1",7);
-		//Clear interrupt to release buffer
-		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX1IF,0x00);
-		//State transition
-		can_current_state = WAIT_MSG1_CLEAR;				//T_CAN30
-		break;
-	case WAIT_MSG0_CLEAR:				//STATE_CAN13
-		//State action
-		action_complete = 1;
-		//State transition
-		if(is_CAN_spi_rx_ready() && action_complete){
-			can_current_state = END_MSG0;					//T_CAN24
-		} else {
-			can_current_state = WAIT_MSG0_CLEAR;			//T_CAN23
-		}
-		break;
-	case WAIT_MSG1_CLEAR:				//STATE_CAN18
-		//State action
-		action_complete = 1;
-		//State transition
-		if(is_CAN_spi_rx_ready() && action_complete){
-			can_current_state = END_MSG1;					//T_CAN32
-		} else {
-			can_current_state = WAIT_MSG1_CLEAR;			//T_CAN31
-		}
-		break;
-	case END_MSG0:						//STATE_CAN14
-		//State action
-		mcp2515_bitmod_register_nonblock_end();
-		//State transition
-		can_current_state = CAN_IDLE;						//T_CAN25
-		break;
-	case END_MSG1:						//STATE_CAN19
-		//State action
-		mcp2515_bitmod_register_nonblock_end();
-		//State transition
-		can_current_state = CAN_IDLE;						//T_CAN33
 		break;
 	default:
-		can_current_state = CAN_IDLE;
-		issue_warning(WARN_ILLEGAL_CAN_STATE);
+		pc_current_state = PC_IDLE;
+		issue_warning(WARN_ILLEGAL_PC_STATE);
 		break;
 	}
+	return;
 }
 
 /* Issue commands on message
  *
  */
-void can_process_msg(uint8_t *buf, uint8_t buf_size){
+void process_cmd(uint8_t *buf, uint8_t buf_size){
 	uint16_t dest_addr = buf[2]>>5;
 	uint16_t m1spd;
 	uint16_t m2spd;
 	dest_addr |= buf[1] << 3;
-	switch(buf[6]){
-	case 0x000:	//Test message
-		dbg_uart_send_string("Rx CAN MSG",10);
-		break;
-	case 0x100:	//Motor velocities
+	switch(buf[0]){
+	case 0x30:	//Motor velocities
 		m1spd = (uint32_t)buf[6] << 24;
 		m1spd |= (uint32_t)buf[7] <<16;
 		m1spd |= (uint32_t)buf[8] << 8;
@@ -948,111 +856,7 @@ void can_process_msg(uint8_t *buf, uint8_t buf_size){
 	}
 }
 
-/*
-void can_task(void){
-	if(CAN_RX0BUF_INT){
-		dbg_uart_send_string("rx",2);
-		mcp2515_write_register(0x2C, 0);	//Clear interrupts
-	}
-	return;
-}*/
-
-/* Initiate message transmission
- * sid: Standard identifier, lowest 10 bits
- * len: number of data bytes
- * data: array of data bytes
- */
-void can_tx_message_buf0(uint16_t sid, uint8_t len, uint8_t *data){
-	//Standard Identifier
-	mcp2515_write_register(MCP2515_TXB0SIDH,(uint8_t)(sid>>3));
-	mcp2515_write_register(MCP2515_TXB0SIDL,(uint8_t)(sid<<5));
-	//Data length
-	mcp2515_write_register(MCP2515_TXB0DLC,len);
-	//Data bytes
-	uint8_t i;
-	for(i=0; i<len;i++){
-		mcp2515_write_register(MCP2515_TXB0D0+i,data[i]);
-	}
-	//Transmit request
-	mcp2515_write_register(MCP2515_TXB0CTRL, MCP2515_TXREQ|MCP2515_TXP_3);
-}
-
-/* Manually read MCP2515 register
- * debug_cmd_buf: Character buffer with user command
- * response_buf: Empty buffer to send response
- */
-inline uint8_t debug_mcp2515_read_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf){
-	uint8_t reg_addr = ascii2hex_byte(debug_cmd_buf[14],debug_cmd_buf[15]);
-	uint8_t reg_value = mcp2515_read_register(reg_addr);
-	uint8_t ascii_value_high = '0';
-	uint8_t ascii_value_low = '0';
-	hex2ascii_byte(reg_value, &ascii_value_high, &ascii_value_low);
-	response_buf[0] = 'r';
-	response_buf[1] = 'e';
-	response_buf[2] = 'a';
-	response_buf[3] = 'd';
-	response_buf[4] = ' ';
-	response_buf[5] = '0';
-	response_buf[6] = 'x';
-	response_buf[7] = debug_cmd_buf[14];
-	response_buf[8] = debug_cmd_buf[15];
-	response_buf[9] = ':';
-	response_buf[10] = ' ';
-	response_buf[11] = '0';
-	response_buf[12] = 'x';
-	response_buf[13] = ascii_value_high;
-	response_buf[14] = ascii_value_low;
-	return 15;
-}
-
-/* Manually write MCP2515 register
- * debug_cmd_buf: Character buffer with user command
- * response_buf: Empty buffer to send response
- */
-inline uint8_t debug_mcp2515_write_reg(uint8_t *debug_cmd_buf,uint8_t *response_buf){
-	uint8_t reg_addr = ascii2hex_byte(debug_cmd_buf[15],debug_cmd_buf[16]);
-	uint8_t data = ascii2hex_byte(debug_cmd_buf[20],debug_cmd_buf[21]);
-	mcp2515_write_register(reg_addr, data);
-	response_buf[0] = 'w';
-	response_buf[1] = 'r';
-	response_buf[2] = 'i';
-	response_buf[3] = 't';
-	response_buf[4] = 'e';
-	response_buf[5] = ' ';
-	response_buf[6] = '0';
-	response_buf[7] = 'x';
-	response_buf[8] = debug_cmd_buf[15];
-	response_buf[9] = debug_cmd_buf[16];
-	response_buf[10] = ':';
-	response_buf[11] = ' ';
-	response_buf[12] = '0';
-	response_buf[13] = 'x';
-	response_buf[14] = debug_cmd_buf[20];
-	response_buf[15] = debug_cmd_buf[21];
-	return 16;
-}
-
-inline uint8_t debug_can_rx(uint8_t *response_buf){
-	uint8_t response_size = 0;
-	//Check if there is data
-	if(can_rx_buf_head != can_rx_buf_tail){
-		hex2ascii_byte(can_rx_buf[can_rx_buf_tail],&response_buf[2],&response_buf[3]);
-		can_rx_buf_tail++;
-		if(can_rx_buf_tail >= CAN_RX_BUF_SIZE){
-			can_rx_buf_tail = 0;
-		}
-		response_buf[0] = '0';
-		response_buf[1] = 'x';
-		response_size = 4;
-	} else {//Buffer empty
-		response_buf[0] = 'n';
-		response_buf[1] = 'a';
-		response_size = 2;
-	}
-	return response_size;
-}
-
-/** END CAN task functions **/
+/** END PC interface task functions **/
 
 /** Monitor Task Functions **/
 
@@ -1072,8 +876,6 @@ void monitor_setup(void){
 void monitor_task(void){
 	static uint8_t run_mon_cnt = 0;	//Set when Check routine must run
 	static uint16_t drill_vzcr = 0;	//Negative reference for drill current
-	uint8_t pckt_size = 0;				//Size of transmitted packet
-	uint8_t buf[16];					//Buffer for transmitted/recieved packet
 	uint16_t conversion;
 	//TODO: Set/clear sys_ok
 	switch(monCurrState){
@@ -1283,7 +1085,6 @@ void monitor_task(void){
 			if(monitor_data.rc_status & RC_STAT_TEMP_WARN) issue_warning(WARN_RC_TEMP_WARN);
 			if(monitor_data.rc_status & RC_STAT_TEMP2_WARN) issue_warning(WARN_RC_TEMP2_WARN);
 		}
-		//TODO: send CAN status packet
 		//State transition
 		monCurrState = MON_WAIT;		//T_MON20
 		break;
@@ -1885,16 +1686,6 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"led6 off",7)==0) && (debug_cmd_buf_ptr == 8)){
 			//>led6 off
 			led_P4_7_off();
-		} else if((strncmp(debug_cmd_buf,"can regread",11)==0) && (debug_cmd_buf_ptr == 16)){
-			//>can regread <register in hex>
-			//>can regread 0x00
-			response_size = debug_mcp2515_read_reg(debug_cmd_buf,response_buf);
-			dbg_uart_send_string(response_buf,response_size);
-		} else if((strncmp(debug_cmd_buf,"can regwrite",12)==0) && (debug_cmd_buf_ptr == 22)){
-			//>can regwrite <register in hex> <data in hex>
-			//>can regwrite 0x00 0x00
-			response_size = debug_mcp2515_write_reg(debug_cmd_buf,response_buf);
-			dbg_uart_send_string(response_buf,response_size);
 		} else if((strncmp(debug_cmd_buf,"P1 get",6)==0) && (debug_cmd_buf_ptr == 6)){
 			//>P1 get
 			response_size = P1_get(response_buf);
@@ -2144,47 +1935,8 @@ void debug_task(void){
 			//>rc get pid2
 			pcmd_data1 = 0;		//Flag to indicate roboclaw command has been sent
 			persistent_cmd = PCMD_RC_GET_PID2;
-		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
-			//can tx 0x00
-			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
-			can_tx_message_buf0(0x279, 1, &temp);
-			dbg_uart_send_string("tx",2);
-		} else if((strncmp(debug_cmd_buf,"can rx",6)==0) && (debug_cmd_buf_ptr == 6)){
-			response_size = debug_can_rx(response_buf);
-			dbg_uart_send_string(response_buf, response_size);
-		} else if((strncmp(debug_cmd_buf,"can dbg en",10)==0) && (debug_cmd_buf_ptr == 10)){
-			can_dbg = 1;
-		} else if((strncmp(debug_cmd_buf,"can dbg dis",11)==0) && (debug_cmd_buf_ptr == 11)){
-			can_dbg = 0;
-		} else if((strncmp(debug_cmd_buf,"can tx2",7)==0) && (debug_cmd_buf_ptr == 7)){
-			//only do when can_dbg = 1, and clear can_dbg after this command
-			if(!can_tx_req.tx_request){
-				can_tx_req.msg_id = 0x0000;
-				can_tx_req.length = 0;
-				can_tx_req.tx_request = 1;
-				dbg_uart_send_string("ok",2);
-			} else {
-				dbg_uart_send_string("fail",4);
-			}
-		} else if((strncmp(debug_cmd_buf,"can test",8)==0) && (debug_cmd_buf_ptr == 8)){
-			if(!can_tx_req.tx_request){
-				can_tx_req.msg_id = 0x0000;
-				can_tx_req.length = 0;
-				can_tx_req.tx_request = 1;
-				dbg_uart_send_string("ok",2);
-			} else {
-				dbg_uart_send_string("fail",4);
-			}
-			/*		} else if((strncmp(debug_cmd_buf,"can tx",6)==0) && (debug_cmd_buf_ptr == 11)){
-			//can tx 0x00
-			uint8_t temp = ascii2hex_byte(debug_cmd_buf[9],debug_cmd_buf[10]);
-			can_tx_message_buf0(0x279, 1, &temp);
-#ifndef PC_CAN
-			uart_send_string("tx",2);
-#endif
-		} else if((strncmp(debug_cmd_buf,"can rx",6)==0) && (debug_cmd_buf_ptr == 6)){
-			response_size = debug_can_rx(response_buf);
-			uart_send_string(response_buf, response_size);*/
+		} else if((strncmp(debug_cmd_buf,"exit",4)==0) && (debug_cmd_buf_ptr == 4)){
+			exit_debug = 1;
 		} else {
 			dbg_uart_send_string("Invalid Command",15);
 		}
@@ -2258,26 +2010,6 @@ __interrupt void USCIA0_ISR(void){
 	} else {
 		issue_warning(WARN_USCIA0_INT_ILLEGAL_FLAG);
 		while(1);
-	}
-}
-
-/* CAN SPI USCIB0 Interrupt Handler
- * SPI Rx:
- * SPI Tx:
- */
-#pragma vector=USCI_B0_VECTOR
-__interrupt void USCIB0_ISR(void){
-	if((UCB0IE & UCRXIE) && (UCB0IFG & UCRXIFG)){				//SPI Rxbuf full interrupt
-		CAN_SPI_data.rx_bytes[CAN_SPI_data.rx_ptr] = UCB0RXBUF;	//Get latest byte from HW
-		CAN_SPI_data.rx_ptr++;									//Flag reset with buffer read
-		if(CAN_SPI_data.rx_ptr >= CAN_SPI_data.num_bytes){		//Done reading data
-			CAN_SPI_CS_DEASSERT;									//Disable CS and disable interrupt
-			CAN_SPI_RXINT_DISABLE;
-			CAN_SPI_data.data_ready = 1;
-		} else {
-			UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
-			CAN_SPI_data.tx_ptr++;
-		}
 	}
 }
 
