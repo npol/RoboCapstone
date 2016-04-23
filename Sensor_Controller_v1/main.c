@@ -134,7 +134,6 @@ uint16_t adc_data_ready = 0x0000;	//Set bit indicates new conversion (set by adc
 /** END ADC task globals **/
 
 /** CAN task globals **/
-void can_setup(void);
 void can_task(void);
 
 typedef enum  {CAN_IDLE,
@@ -218,10 +217,6 @@ int main(void) {
 /** END Main Loop **/
 
 /** CAN task functions **/
-void can_setup(void){
-	return;
-}
-
 void can_task(void){
 	uint8_t action_complete;
 	uint8_t buf[16];
@@ -291,18 +286,7 @@ void can_task(void){
 		can_current_state = WAIT_SETUP_TX;					//T_CAN7
 		break;
 	case WAIT_SETUP_TX:					//STATE_CAN5
-		//State action
-/*		__disable_interrupt();
-		if(UCB0STAT & UCBUSY){			//Hack to force USCIB0 to release SPI and transaction if Rx interrupt doesn't fire on last byte
-			wait_count++;
-		} else {
-			CAN_SPI_CS_DEASSERT;
-			CAN_SPI_data.data_ready = 1;
-		}
-		__enable_interrupt();*/
-		if(UCB0STAT & UCOE){
-			issue_warning(WARN_CAN_SPI_OVERRUN);
-		}
+		//State action: none
 		//State transition
 		if(is_CAN_spi_rx_ready()){
 			can_current_state = INIT_TX_MSG;				//T_CAN9
@@ -1097,26 +1081,6 @@ __interrupt void USCIA0_ISR(void){
  * SPI Rx:
  * SPI Tx:
  */
-/*
-#pragma vector=USCI_B0_VECTOR
-__interrupt void USCIB0_ISR(void){
-	if((UCB0IE & UCRXIE) && (UCB0IFG & UCRXIFG)){				//SPI Rxbuf full interrupt
-		CAN_SPI_data.rx_bytes[CAN_SPI_data.rx_ptr] = UCB0RXBUF;	//Get latest byte from HW
-		CAN_SPI_data.rx_ptr++;									//Flag reset with buffer read
-		if(CAN_SPI_data.rx_ptr >= CAN_SPI_data.num_bytes){		//Done reading data
-			CAN_SPI_CS_DEASSERT;									//Disable CS and disable interrupt
-			CAN_SPI_RXINT_DISABLE;
-			CAN_SPI_data.data_ready = 1;
-		}
-	}
-	if((UCB0IE & UCTXIE) && (UCB0IFG & UCTXIFG)){
-		UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
-		CAN_SPI_data.tx_ptr++;								//Flag reset with buffer write
-		if(CAN_SPI_data.tx_ptr >= CAN_SPI_data.num_bytes){		//Done transmitting data
-			CAN_SPI_TXINT_DISABLE;							//Disable Tx interrupt
-		}
-	}
-}*/
 #pragma vector=USCI_B0_VECTOR
 __interrupt void USCIB0_ISR(void){
 	if((UCB0IE & UCRXIE) && (UCB0IFG & UCRXIFG)){				//SPI Rxbuf full interrupt
@@ -1131,13 +1095,6 @@ __interrupt void USCIB0_ISR(void){
 			CAN_SPI_data.tx_ptr++;
 		}
 	}
-/*	if((UCB0IE & UCTXIE) && (UCB0IFG & UCTXIFG)){
-		UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
-		CAN_SPI_data.tx_ptr++;								//Flag reset with buffer write
-		if(CAN_SPI_data.tx_ptr >= CAN_SPI_data.num_bytes){		//Done transmitting data
-			CAN_SPI_TXINT_DISABLE;							//Disable Tx interrupt
-		}
-	}*/
 }
 
 /* ADC12 Interrupt Vector

@@ -37,8 +37,9 @@ void setup_mcp2515(void){
 	mcp2515_reset();
 	//TODO: configure buf0, buf1, setup filters
 	mcp2515_write_register(MCP2515_RXB0CTRL, 0x60);	//Recieve any message
+	mcp2515_write_register(MCP2515_RXB0CTRL, 0x60);	//Recieve any message
 	mcp2515_write_register(MCP2515_RXB1CTRL, 0x60);	//Recieve any message
-	mcp2515_write_register(0x0C, BIT3+BIT2+BIT1+BIT0);	//Enable RX0BF, RX1BF interrupt
+	mcp2515_write_register(0x0C, BIT3+BIT2+BIT1+BIT0);	//Enable RX0BF and RX1BF interrupts
 	mcp2515_write_register(MCP2515_CANINTE, BIT7);			//Enable general interrupt for errors
 	mcp2515_write_register(0x2A, 3);			//Decrease clock frequency
 	/* Set normal mode */

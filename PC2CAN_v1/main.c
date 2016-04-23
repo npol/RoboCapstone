@@ -41,7 +41,8 @@ typedef enum  {PC_IDLE,
 				PC_WAIT_SIZE,
 				PC_GET_SIZE,
 				PC_LOAD_BUF,
-				PC_EXEC_CMD
+				PC_EXEC_CMD,
+				PC_WAIT_CAN
 				} pc_state_t;
 volatile pc_state_t pc_current_state = PC_IDLE;
 
@@ -305,15 +306,7 @@ void can_task(void){
 		can_current_state = WAIT_SETUP_TX;					//T_CAN7
 		break;
 	case WAIT_SETUP_TX:					//STATE_CAN5
-		//State action
-/*		__disable_interrupt();
-		if(UCB0STAT & UCBUSY){			//Hack to force USCIB0 to release SPI and transaction if Rx interrupt doesn't fire on last byte
-			wait_count++;
-		} else {
-			CAN_SPI_CS_DEASSERT;
-			CAN_SPI_data.data_ready = 1;
-		}
-		__enable_interrupt();*/
+		//State action: none
 		//State transition
 		if(is_CAN_spi_rx_ready()){
 			can_current_state = INIT_TX_MSG;				//T_CAN9
@@ -403,8 +396,8 @@ void can_task(void){
 		//Get data
 		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
 		//Issue relevant commands
-		//TODO: Issue revlevant commands
-		dbg_uart_send_string("rx msg0",6);
+		dbg_uart_send_string("rx msg0",7);
+		//can_process_msg(buf, resp_size);
 		//Clear interrupt to release buffer
 		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX0IF,0x00);
 		//State transition
@@ -415,8 +408,8 @@ void can_task(void){
 		//Get data
 		resp_size = mcp2515_read_mult_registers_nonblock_getdata(buf);
 		//Issue relevant commands
-		//TODO
-		dbg_uart_send_string("rx msg1",6);
+		dbg_uart_send_string("rx msg1",7);
+		//can_process_msg(buf, resp_size);
 		//Clear interrupt to release buffer
 		mcp2515_bitmod_register_nonblock_init(MCP2515_CANINTF,MCP2515_RX1IF,0x00);
 		//State transition
@@ -479,6 +472,19 @@ void can_tx_message_buf0(uint16_t sid, uint8_t len, uint8_t *data){
 	}
 	//Transmit request
 	mcp2515_write_register(MCP2515_TXB0CTRL, MCP2515_TXREQ|MCP2515_TXP_3);
+}
+
+/* Issue commands on message
+ *
+ */
+void can_process_msg(uint8_t *buf, uint8_t buf_size){
+	uint16_t dest_addr = buf[2]>>5;
+	dest_addr |= buf[1] << 3;
+	switch(buf[6]){
+	case 0x100:
+
+		break;
+	}
 }
 
 /* Manually read MCP2515 register
@@ -792,6 +798,7 @@ void reset_timer(void){
 
 void pc_task(void){
 	uint8_t rx_byte = 0;
+	uint8_t i;
 	switch(pc_current_state){
 	case PC_IDLE:
 		//State action
@@ -840,16 +847,37 @@ void pc_task(void){
 		//State transition
 		if(check_timeout()){
 			pc_current_state = PC_IDLE;
-		} else if(pc_cmd_size == pc_cmd_buf_ptr){
+		} else if((pc_cmd_size == pc_cmd_buf_ptr)){
 			pc_current_state = PC_EXEC_CMD;
 		} else {
 			pc_current_state = PC_LOAD_BUF;
 		}
 		break;
+	case PC_WAIT_CAN:
+		//State action: no action
+		//State transition
+		if(!can_tx_req.tx_request){
+			pc_current_state = PC_WAIT_CAN;
+		} else {
+			pc_current_state = PC_EXEC_CMD;
+		}
 	case PC_EXEC_CMD:
 		//State action
-		//TODO: send action
-		dbg_uart_send_byte('r');
+		//Send motor velocities
+		switch(pc_cmd_buf[0]){
+		case 0x30:	//Motor Velocities
+			can_tx_req.msg_id = 0x0100;
+			can_tx_req.length = 8;
+			for(i=0; i<8; i++){
+				can_tx_req.data[i] = pc_cmd_buf[i+1];
+			}
+			can_tx_req.tx_request = 1;
+			break;
+		case 0x00:	//Test message
+			can_tx_req.msg_id = 0x0000;
+			can_tx_req.length = 0;
+			can_tx_req.tx_request = 1;
+		}
 		//State transition
 		pc_current_state = PC_IDLE;
 		break;
@@ -1041,7 +1069,7 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"can tx2",7)==0) && (debug_cmd_buf_ptr == 7)){
 			//only do when can_dbg = 1, and clear can_dbg after this command
 			if(!can_tx_req.tx_request){
-				can_tx_req.msg_id = 0x030F;
+				can_tx_req.msg_id = 0x0000;
 				can_tx_req.length = 0;
 				can_tx_req.tx_request = 1;
 				dbg_uart_send_string("ok",2);
@@ -1160,13 +1188,9 @@ __interrupt void USCIB0_ISR(void){
 			CAN_SPI_CS_DEASSERT;									//Disable CS and disable interrupt
 			CAN_SPI_RXINT_DISABLE;
 			CAN_SPI_data.data_ready = 1;
-		}
-	}
-	if((UCB0IE & UCTXIE) && (UCB0IFG & UCTXIFG)){
-		UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
-		CAN_SPI_data.tx_ptr++;								//Flag reset with buffer write
-		if(CAN_SPI_data.tx_ptr >= CAN_SPI_data.num_bytes){		//Done transmitting data
-			CAN_SPI_TXINT_DISABLE;							//Disable Tx interrupt
+		} else {
+			UCB0TXBUF = CAN_SPI_data.tx_bytes[CAN_SPI_data.tx_ptr];	//Load next byte into HW buffer
+			CAN_SPI_data.tx_ptr++;
 		}
 	}
 }

@@ -71,7 +71,6 @@
 #define WARN_CAN_TX_ABTF			0x8509
 #define WARN_CAN_TX_TXERR			0x850A
 #define WARN_CAN_TXREQ				0x850B
-#define WARN_CAN_SPI_OVERRUN		0x850C
 
 
 #endif /* ERR_WARN_CODES_H_ */
