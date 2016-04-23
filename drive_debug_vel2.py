@@ -79,6 +79,7 @@ def dec2ascii(velocity):
         return "%08X" % (0xFFFFFFFF - (abs(velocity) - 1))
 
 def main():
+    """
     pygame.init()
     print "%d joystick(s) found" % joystick.get_count()
     if joystick.get_count() == 0 : return
@@ -89,6 +90,7 @@ def main():
     print "[Joystick] %d balls" % stick.get_numballs()
     print "[Joystick] %d buttons" % stick.get_numbuttons()
     print "[Joystick] %d hats" % stick.get_numhats()
+    """
     ser = serial.Serial("/dev/ttyUSB0",115200,timeout=0)
     ser.flushInput()
     ser.flushOutput()
@@ -106,18 +108,20 @@ def main():
         #print str(axis_x)+" "+str(axis_y)+" "+str(axis_z)
         #print str(left)+" "+str(right)
         """
+        m1speed = 0x01234567
+        m2speed = 0x89ABCDEF
         #Send values to motors
         ser.write(chr(0x7E))#Start delimiter
         ser.write(chr(0x09))#Size
         ser.write(chr(0x30))#Motor velocity command
-        ser.write(chr(0x01))#M1[31:24]
-        ser.write(chr(0x23))#M1[23:16]
-        ser.write(chr(0x45))#M1[15:8]
-        ser.write(chr(0x67))#M1[7:0]
-        ser.write(chr(0x89))#M2[31:24]
-        ser.write(chr(0xAB))#M2[23:16]
-        ser.write(chr(0xCD))#M2[15:8]
-        ser.write(chr(0xEF))#M2[7:0]
+        ser.write(chr((m1speed>>24)&0xFF))#M1[31:24]
+        ser.write(chr((m1speed>>16)&0xFF))#M1[23:16]
+        ser.write(chr((m1speed>>8)&0xFF))#M1[15:8]
+        ser.write(chr(m1speed&0xFF))#M1[7:0]
+        ser.write(chr((m2speed>>24)&0xFF))#M2[31:24]
+        ser.write(chr((m2speed>>16)&0xFF))#M2[23:16]
+        ser.write(chr((m2speed>>8)&0xFF))#M2[15:8]
+        ser.write(chr(m2speed&0xFF))#M2[7:0]
         sleep(10)
         """
         ser.write(chr(13))  #CR
