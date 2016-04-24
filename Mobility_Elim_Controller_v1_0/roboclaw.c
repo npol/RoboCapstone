@@ -18,7 +18,7 @@ uint8_t rc_fw_ver[27] = "USB Roboclaw 2x60a v4.1.13";
 void roboclaw_setup(void){
 	//Setup TA2 to fire at intervals for triggering encoders and check routines
 	TA2CCTL0 = CCIE;                          // CCR0 interrupt enabled
-	TA2CCR0 = 10000;
+	TA2CCR0 = 20000;
 	TA2CTL = TASSEL_2 + MC_1 + TACLR + ID_3;         // SMCLK, upmode, clear TAR, div8
 	TA2EX0 = TAIDEX_7;							//div8
 	return;

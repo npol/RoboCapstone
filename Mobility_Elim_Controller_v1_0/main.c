@@ -81,6 +81,7 @@ uint8_t exit_debug = 0;
 #define PC_START_DELIMITER 0x7E
 #define PC_DEBUG_DELIMITER '+'
 #define ENCODER_DELIMITER 0x55
+#define MONITOR_DELIMITER 0xAA
 #define MSG_END_DELIMITER 0x33
 
 /** END PC interface task globals **/
@@ -119,11 +120,18 @@ typedef enum  {RC_WAIT,
 				CHECK_STAT_REQ,
 				SEND_FW_VER,
 				WAIT_FW_VER,
-				READ_FW_VER} rc_state_t;
+				READ_FW_VER,
+				SEND_ESTOP,
+				WAIT_ESTOP,
+				ERR_ESTOP,
+				READ_ESTOP} rc_state_t;
 volatile rc_state_t rcCurrState = SEND_FW_VER;//RC_WAIT;
 #define WAIT_THRESH 50000
 #define RC_RUN_CHECK_INTERVAL 500
 volatile uint8_t rc_check_ran_once = 0;
+
+#define PCKT_TIMEOUT_THRESH		10
+#define PCKT_CRC_ERR_THRESH		10
 
 /* Struct to request asynchronous packet transaction */
 #define RC_REQ_SIZE 64
@@ -152,9 +160,12 @@ uint32_t enc1_count = 0;
 /* Encoder 2 count */
 uint32_t enc2_count = 0;
 
+#define WARN_DENSITY
+
 void roboclaw_task(void);
 void monitor_task(void);
 void monitor_setup(void);
+uint8_t check_rx_crc(uint8_t cmd, uint8_t *rx_data, uint8_t rx_data_size);
 
 /** END Roboclaw task globals **/
 
@@ -285,6 +296,8 @@ void roboclaw_task(void){
 	volatile static uint8_t run_enc_flag = 0;	//Set when encoders should be checked
 	volatile static uint8_t run_check_flag = 0;	//Set when Check routine must run
 	volatile static uint16_t wait_cntr = 0;		//counter to prevent hang while waiting for failed packet
+	volatile static uint8_t pckt_timeout_cntr = 0;		//Count density of packet timeouts
+	volatile static uint8_t pckt_crc_err_cntr = 0;		//Count density of crc errors
 	uint8_t pckt_size = 0;				//Size of transmitted packet
 	uint8_t buf[32];					//Buffer for transmitted/recieved packet
 	uint8_t resp_buf[16];
@@ -293,6 +306,14 @@ void roboclaw_task(void){
 	case RC_WAIT:
 		//State action: nothing
 		led_P1_0_off();
+#ifdef WARN_DENSITY
+		if(pckt_timeout_cntr > PCKT_TIMEOUT_THRESH){
+			issue_warning(WARN_PCKT_TIMEOUT);
+		}
+		if(pckt_crc_err_cntr > PCKT_CRC_ERR_THRESH){
+			issue_warning(WARN_PCKT_CRC);
+		}
+#endif
 		//State transition
 		if(timer_TA2_tick){						//T_DRV2
 			timer_TA2_tick = 0;
@@ -387,9 +408,28 @@ void roboclaw_task(void){
 		//Get data from encoder 1 count
 		pckt_size = rc_uart_get_string(buf,7);
 		if(pckt_size == 0){
+#ifdef WARN_DENSITY
+			pckt_timeout_cntr++;
+#else
 			issue_warning(WARN_RC_SM_ENC1_DATA_FAIL);
+#endif
+		} else if(!check_rx_crc(RC_READ_M1_ENC_COUNT,buf,pckt_size)){
+#ifdef WARN_DENSITY
+			pckt_crc_err_cntr++;
+#else
+			issue_warning(WARN_RC_SM_ENC1_CRC_FAIL);
+#endif
+		} else {
+#ifdef WARN_DENSITY
+			if(pckt_timeout_cntr != 0){
+				pckt_timeout_cntr--;
+			}
+			if(pckt_crc_err_cntr != 0){
+				pckt_crc_err_cntr--;
+			}
+#endif
+			enc1_count = ((uint32_t)buf[0]<<24)|((uint32_t)buf[1]<<16)|((uint32_t)buf[2]<<8)|((uint32_t)buf[3]);
 		}
-		enc1_count = ((uint32_t)buf[0]<<24)|((uint32_t)buf[1]<<16)|((uint32_t)buf[2]<<8)|((uint32_t)buf[3]);
 		//Send encoder 2 count request
 		wait_cntr = 0;
 		pckt_size = RCgetEnc2Count(buf);		//Get packet
@@ -420,9 +460,28 @@ void roboclaw_task(void){
 		//Get encoder 2 data
 		pckt_size = rc_uart_get_string(buf,7);
 		if(!pckt_size){
+#ifdef WARN_DENSITY
+			pckt_timeout_cntr++;
+#else
 			issue_warning(WARN_RC_SM_ENC2_DATA_FAIL);
+#endif
+		} else if(!check_rx_crc(RC_READ_M2_ENC_COUNT,buf,pckt_size)){
+#ifdef WARN_DENSITY
+			pckt_crc_err_cntr++;
+#else
+			issue_warning(WARN_RC_SM_ENC2_CRC_FAIL);
+#endif
+		} else {
+#ifdef WARN_DENSITY
+			if(pckt_timeout_cntr != 0){
+				pckt_timeout_cntr--;
+			}
+			if(pckt_crc_err_cntr != 0){
+				pckt_crc_err_cntr--;
+			}
+#endif
+			enc2_count = ((uint32_t)buf[0]<<24)|((uint32_t)buf[1]<<16)|((uint32_t)buf[2]<<8)|((uint32_t)buf[3]);
 		}
-		enc2_count = ((uint32_t)buf[0]<<24)|((uint32_t)buf[1]<<16)|((uint32_t)buf[2]<<8)|((uint32_t)buf[3]);
 		//Send encoder data to PC
 		if(pc_current_state != PC_DEBUG){
 			resp_buf[0] = ENCODER_DELIMITER;
@@ -688,13 +747,71 @@ void roboclaw_task(void){
 			issue_warning(WARN_RC_BAD_FW);
 		}
 		//State transition
+#ifdef ESTOP_OVERRIDE
 		rcCurrState = RC_WAIT;						//T_DRV53
+#else
+		rcCurrState = SEND_ESTOP;					//T_DRV54
+#endif
+		break;
+	case SEND_ESTOP:
+		//State action
+		wait_cntr = 0;
+		pckt_size = RCenableESTOP(buf);			//Get packet
+		rc_uart_send_string(buf, pckt_size);		//Send packet to UART
+		//State transition
+		rcCurrState = WAIT_ESTOP;
+		break;
+	case WAIT_ESTOP:
+		//State action
+		wait_cntr++;
+		//State transition
+		if(is_rc_uart_rx_ndata_ready() == 1){
+			rcCurrState = READ_ESTOP;			//T_DRV59
+		} else if(wait_cntr > WAIT_THRESH){
+			rcCurrState = ERR_ESTOP;				//T_DRV57
+		} else {
+			rcCurrState = WAIT_ESTOP;			//T_DRV56
+		}
+		break;
+	case ERR_ESTOP:
+		//State action
+		issue_warning(WARN_RC_SM_ESTOP_PCKT_FAIL);
+		//State transition
+		rcCurrState = SEND_ESTOP;
+		break;
+	case READ_ESTOP:
+		//State action/transition
+		pckt_size = rc_uart_get_string(buf,1);
+		if(pckt_size == 0){
+			issue_warning(WARN_RC_SM_ESTOP_DATA_FAIL1);
+			rcCurrState = SEND_ESTOP;
+		} else if(buf[0] != 0xFF){
+			issue_warning(WARN_RC_SM_ESTOP_DATA_FAIL2);
+			rcCurrState = SEND_ESTOP;
+		} else {
+			rcCurrState = RC_WAIT;
+		}
 		break;
 	default:
 		issue_warning(WARN_ILLEGAL_RC_SM_STATE);
 		rcCurrState = RC_WAIT;
 		break;
 	}
+}
+
+uint8_t check_rx_crc(uint8_t cmd, uint8_t *rx_data, uint8_t rx_data_size){
+	uint8_t buf[32];
+	uint8_t i;
+	uint16_t calc_crc, rx_crc;
+	buf[0] = RC_ADDR;
+	buf[1] = cmd;
+	for(i=0; i < rx_data_size - 2; i++){
+		buf[i+2] = rx_data[i];
+	}
+	calc_crc = crc16(buf,rx_data_size);
+	rx_crc = rx_data[rx_data_size-2];
+	rx_crc |= rx_data[rx_data_size-1] << 8;
+	return calc_crc == rx_crc;
 }
 
 /** END Roboclaw Task Functions **/
@@ -881,8 +998,20 @@ void monitor_setup(void){
 void monitor_task(void){
 	static uint8_t run_mon_cnt = 0;	//Set when Check routine must run
 	static uint16_t drill_vzcr = 0;	//Negative reference for drill current
+	uint8_t buf[8];
 	uint16_t conversion;
-	//TODO: Set/clear sys_ok
+	//Check ESTOP
+	if(P1IN & BIT4){
+		monitor_data.estop_status = 1;
+#ifndef ESTOP_OVERRIDE
+		sys_ok = 1;
+#endif
+	} else {
+		monitor_data.estop_status = 0;
+#ifndef ESTOP_OVERRIDE
+		sys_ok = 0;
+#endif
+	}
 	switch(monCurrState){
 	case MON_WAIT:
 		//State action
@@ -1090,6 +1219,13 @@ void monitor_task(void){
 			if(monitor_data.rc_status & RC_STAT_TEMP_WARN) issue_warning(WARN_RC_TEMP_WARN);
 			if(monitor_data.rc_status & RC_STAT_TEMP2_WARN) issue_warning(WARN_RC_TEMP2_WARN);
 		}
+		//Send packet to PC
+		buf[0] = MONITOR_DELIMITER;
+		buf[1] = 2;
+		buf[2] = ((monitor_data.vsense_12V[0]>>8)&0x7F) | (monitor_data.estop_status << 8);
+		buf[3] = (monitor_data.vsense_12V[0]&0xFF);
+		buf[4] = MSG_END_DELIMITER;
+		dbg_uart_send_string(buf,5);
 		//State transition
 		monCurrState = MON_WAIT;		//T_MON20
 		break;
@@ -1838,10 +1974,9 @@ void debug_task(void){
 				drill_request = DRILL_REQ_CW;
 			if(debug_cmd_buf[10] == '2')
 				drill_request = DRILL_REQ_CCW;
-		//} else if((strncmp(debug_cmd_buf,"step",4)==0) && (debug_cmd_buf_ptr == 4)){
 		} else if((strncmp(debug_cmd_buf,"s",1)==0) && (debug_cmd_buf_ptr == 1)){
 			//>st+p
-			uint8_t i = 0;//TODO: remove before flight
+			uint8_t i = 0;
 			uint16_t j = 0;
 			for(i=0; i < 100; i++){
 				stepper_step_single();
