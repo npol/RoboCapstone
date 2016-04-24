@@ -240,7 +240,7 @@ volatile mon_state_t monCurrState = MON_WAIT;
 
 //Flag to indicate if safe to operate drill and stepper
 volatile uint8_t sys_ok = 0;
-#define ESTOP_OVERRIDE
+//#define ESTOP_OVERRIDE
 
 /** END Monioring task globals **/
 
@@ -809,8 +809,8 @@ uint8_t check_rx_crc(uint8_t cmd, uint8_t *rx_data, uint8_t rx_data_size){
 		buf[i+2] = rx_data[i];
 	}
 	calc_crc = crc16(buf,rx_data_size);
-	rx_crc = rx_data[rx_data_size-2];
-	rx_crc |= rx_data[rx_data_size-1] << 8;
+	rx_crc = rx_data[rx_data_size-2] << 8;
+	rx_crc |= rx_data[rx_data_size-1];
 	return calc_crc == rx_crc;
 }
 
@@ -1191,7 +1191,7 @@ void monitor_task(void){
 		if(monitor_data.mcu_temp[0] > MCU_TEMP_MAX) issue_warning(WARN_HIGH_MCU_TEMP);
 		if(monitor_data.drill_current[0] < DR_CURRENT_MIN) issue_warning(WARN_LOW_DRILL_CURRENT);
 		if(monitor_data.drill_current[0] > DR_CURRENT_MAX) issue_warning(WARN_HIGH_DRILL_CURRENT);
-		if(monitor_data.estop_status) issue_warning(ESTOP_ACTIVATED);
+		//if(monitor_data.estop_status) issue_warning(ESTOP_ACTIVATED);
 		//These parameters are gathered by other tasks, so need to know if ran at least once.
 		if(rc_check_ran_once){
 			if(monitor_data.rc_mbatt[0] < RC_MBATT_MIN) issue_warning(WARN_LOW_RC_MBATT);
@@ -1220,12 +1220,14 @@ void monitor_task(void){
 			if(monitor_data.rc_status & RC_STAT_TEMP2_WARN) issue_warning(WARN_RC_TEMP2_WARN);
 		}
 		//Send packet to PC
-		buf[0] = MONITOR_DELIMITER;
-		buf[1] = 2;
-		buf[2] = ((monitor_data.vsense_12V[0]>>8)&0x7F) | (monitor_data.estop_status << 8);
-		buf[3] = (monitor_data.vsense_12V[0]&0xFF);
-		buf[4] = MSG_END_DELIMITER;
-		dbg_uart_send_string(buf,5);
+		if(pc_current_state != PC_DEBUG){
+			buf[0] = MONITOR_DELIMITER;
+			buf[1] = 2;
+			buf[2] = ((monitor_data.vsense_12V[0]>>8)&0x7F) | (monitor_data.estop_status << 8);
+			buf[3] = (monitor_data.vsense_12V[0]&0xFF);
+			buf[4] = MSG_END_DELIMITER;
+			dbg_uart_send_string(buf,5);
+		}
 		//State transition
 		monCurrState = MON_WAIT;		//T_MON20
 		break;
