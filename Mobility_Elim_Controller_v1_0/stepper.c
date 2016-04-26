@@ -27,6 +27,7 @@ inline void stop_pwm(void);
 int16_t step_setpoint = 0;
 #define STEP_MAX_POS 0x7FFF
 #define STEP_HYST_POS -100
+
 #define STEP_HOME_POS -200
 int16_t step_position = 0;
 uint8_t step_direction = 0;	//0: CW, 1: CCW
@@ -49,7 +50,7 @@ typedef enum  {STEP_WAIT_HOME,
 				STEP_START_MOVE,
 				STEP_RUN_MOVE,
 				STEP_ERROR} step_state_t;
-volatile step_state_t stepCurrState = STEP_WAIT;//TODO change to STEP_WAIT_HOME
+volatile step_state_t stepCurrState = STEP_WAIT_HOME;
 
 /* Stepper State Machine
  *
@@ -60,9 +61,11 @@ void stepper_task(void){
 		//State action
 		stop_pwm();
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT1);
 			stepCurrState = STEP_ERROR;						//T_STP0
+		} else if(!sys_ok){
+			stepCurrState = STEP_WAIT_HOME;
 		} else if(step_home_request){
 			step_home_request = 0;
 			stepCurrState = STEP_START_FIND_UP_LIMIT;		//T_STP1
@@ -181,9 +184,11 @@ void stepper_task(void){
 		//State action
 		//No action
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT9);
 			stepCurrState = STEP_ERROR;						//T_STP20
+		} else if(!sys_ok){
+			stepCurrState = STEP_WAIT;
 		} else if(step_home_request){
 			step_home_request = 0;
 			stepCurrState = STEP_START_FIND_UP_LIMIT;		//T_STP25
@@ -243,7 +248,7 @@ void stepper_task(void){
 		stop_pwm();
 		//State transition
 		if(!is_lower_sw_pressed() && sys_ok){
-			stepCurrState = STEP_WAIT;						//T_STP30
+			stepCurrState = STEP_WAIT_HOME;						//T_STP30
 		} else {
 			stepCurrState = STEP_ERROR;						//T_STP34
 		}
@@ -261,6 +266,7 @@ void stepper_task(void){
 void stepper_setup(void){
 	//Assign stepper pins
 	P1DIR |= STEP_PIN;		//Step output
+	P1SEL |= STEP_PIN;
 	P7DIR |= BIT1+BIT2;		//Enable and direction outputs
 	P7OUT |= (BIT1+BIT2);	//Disable motor
 	//Setup TA0.1 to pulse step pin
@@ -275,7 +281,7 @@ void stepper_setup(void){
 }
 
 inline void start_pwm(void){
-	TA0CTL |= MC_1;	//Up mode
+	TA0CTL |= MC_1+TACLR;	//Up mode
 }
 
 inline void stop_pwm(void){

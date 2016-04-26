@@ -84,6 +84,8 @@ uint8_t exit_debug = 0;
 #define MONITOR_DELIMITER 0xAA
 #define MSG_END_DELIMITER 0x33
 
+#define NO_STATUS_TO_PC
+
 /** END PC interface task globals **/
 
 /** Roboclaw task globals **/
@@ -1220,6 +1222,7 @@ void monitor_task(void){
 			if(monitor_data.rc_status & RC_STAT_TEMP2_WARN) issue_warning(WARN_RC_TEMP2_WARN);
 		}
 		//Send packet to PC
+#ifndef NO_STATUS_TO_PC
 		if(pc_current_state != PC_DEBUG){
 			buf[0] = MONITOR_DELIMITER;
 			buf[1] = 2;
@@ -1228,6 +1231,7 @@ void monitor_task(void){
 			buf[4] = MSG_END_DELIMITER;
 			dbg_uart_send_string(buf,5);
 		}
+#endif
 		//State transition
 		monCurrState = MON_WAIT;		//T_MON20
 		break;
@@ -1993,6 +1997,11 @@ void debug_task(void){
 		} else if((strncmp(debug_cmd_buf,"step dis",8)==0) && (debug_cmd_buf_ptr == 8)){
 			//>step dis
 			stepper_disable();
+		} else if((strncmp(debug_cmd_buf,"step home",9)==0) && (debug_cmd_buf_ptr == 9)){
+			step_home_request = 1;
+		} else if((strncmp(debug_cmd_buf,"step pos ",9)==0) && (debug_cmd_buf_ptr == 13)){
+			step_request_pos = -ascii2hex_int(debug_cmd_buf[9],debug_cmd_buf[10],debug_cmd_buf[11],debug_cmd_buf[12]);
+			step_request = 1;
 		} else if((strncmp(debug_cmd_buf,"forceTA2",8)==0) && (debug_cmd_buf_ptr == 8)){
 			timer_TA2_tick = 1;
 		} else if((strncmp(debug_cmd_buf,"rc m1 ",6)==0) && (debug_cmd_buf_ptr == 8)){
@@ -2105,9 +2114,9 @@ __interrupt void TIMER2_A0_ISR(void){
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TIMER0_A0_ISR(void){
 	if(step_direction){	//CCW
-		step_position++;
-	} else {
 		step_position--;
+	} else {
+		step_position++;
 	}
 	//Check if reached setpoint.  If so, notify SM
 	if(step_position == step_setpoint){

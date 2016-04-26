@@ -26,6 +26,10 @@ extern uint8_t step_direction;
 extern uint8_t step_run_done;
 extern volatile uint8_t sys_ok;
 
+extern uint8_t step_request;
+extern int16_t step_request_pos;
+extern uint8_t step_home_request;
+
 void stepper_setup(void);
 void stepper_task(void);
 void stepper_step_single(void);
