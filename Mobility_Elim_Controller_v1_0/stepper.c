@@ -26,7 +26,7 @@ inline void stop_pwm(void);
 /* Stepper globals for TA0.0 interrupt */
 int16_t step_setpoint = 0;
 #define STEP_MAX_POS 0x7FFF
-#define STEP_HYST_POS -100
+#define STEP_HYST_POS -200
 
 #define STEP_HOME_POS -200
 int16_t step_position = 0;
@@ -66,9 +66,12 @@ void stepper_task(void){
 			stepCurrState = STEP_ERROR;						//T_STP0
 		} else if(!sys_ok){
 			stepCurrState = STEP_WAIT_HOME;
-		} else if(step_home_request){
+		} else if(step_home_request && !is_upper_sw_pressed()){
 			step_home_request = 0;
 			stepCurrState = STEP_START_FIND_UP_LIMIT;		//T_STP1
+		} else if(step_home_request && is_upper_sw_pressed()){
+			step_home_request = 0;
+			stepCurrState = STEP_START_HYST_MOVE;
 		} else {
 			stepCurrState = STEP_WAIT_HOME;					//T_STP2
 		}
@@ -233,6 +236,8 @@ void stepper_task(void){
 		if(is_lower_sw_pressed() || !sys_ok){
 			issue_warning(WARN_STEP_FAULT11);
 			stepCurrState = STEP_ERROR;						//T_STP27
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;						//T_STP27
 		} else if(step_request && !step_run_done){	//New step request
 			step_request = 0;
 			stepCurrState = STEP_START_MOVE;				//T_STP26
@@ -248,7 +253,8 @@ void stepper_task(void){
 		stop_pwm();
 		//State transition
 		if(!is_lower_sw_pressed() && sys_ok){
-			stepCurrState = STEP_WAIT_HOME;						//T_STP30
+			//stepCurrState = STEP_WAIT_HOME;						//T_STP30
+			stepCurrState = STEP_STOP_STEPPER;
 		} else {
 			stepCurrState = STEP_ERROR;						//T_STP34
 		}

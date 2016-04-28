@@ -17,7 +17,7 @@
 
 #define STEP_PORT P1OUT
 #define STEP_PIN BIT2
-#define STEP_TIME 4096	//95Hz
+#define STEP_TIME 2048	//95Hz
 
 /* Stepper globals for TA0.0 interrupt */
 extern int16_t step_setpoint;
