@@ -52,6 +52,8 @@ typedef enum  {STEP_WAIT_HOME,
 				STEP_ERROR} step_state_t;
 volatile step_state_t stepCurrState = STEP_WAIT_HOME;
 
+//#define SW_ESTOP
+
 /* Stepper State Machine
  *
  */
@@ -64,8 +66,10 @@ void stepper_task(void){
 		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT1);
 			stepCurrState = STEP_ERROR;						//T_STP0
+#ifdef SW_ESTOP
 		} else if(!sys_ok){
 			stepCurrState = STEP_WAIT_HOME;
+#endif
 		} else if(step_home_request && !is_upper_sw_pressed()){
 			step_home_request = 0;
 			stepCurrState = STEP_START_FIND_UP_LIMIT;		//T_STP1
@@ -85,9 +89,13 @@ void stepper_task(void){
 		//TODO: check direction is up
 		start_pwm();
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT2);
 			stepCurrState = STEP_ERROR;						//T_STP4
+#ifdef SW_ESTOP
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;
+#endif
 		} else {
 			stepCurrState = STEP_FIND_UP_LIMIT;				//T_STP3
 		}
@@ -96,9 +104,13 @@ void stepper_task(void){
 		//State action
 		//No action
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT3);
 			stepCurrState = STEP_ERROR;						//T_STP7
+#ifdef SW_ESTOP
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;
+#endif
 		} else if(is_upper_sw_pressed()){
 			stepCurrState = STEP_START_HYST_MOVE;			//T_STP5
 		} else if(step_run_done){	//Did not hit switch
@@ -118,9 +130,13 @@ void stepper_task(void){
 		//TODO: check direction is down
 		start_pwm();
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT4);
 			stepCurrState = STEP_ERROR;						//T_STP8
+#ifdef SW_ESTOP
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;
+#endif
 		} else {
 			stepCurrState = STEP_FIND_UP_LIMIT_UP;			//T_STP9
 		}
@@ -129,9 +145,13 @@ void stepper_task(void){
 		//State action
 		//No action
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT5);
 			stepCurrState = STEP_ERROR;						//T_STP10
+#ifdef SW_ESTOP
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;
+#endif
 		} else if(!is_upper_sw_pressed()){
 			stepCurrState = STEP_START_HOME;				//T_STP12
 		} else if(step_run_done){	//Switch did not release
@@ -151,9 +171,13 @@ void stepper_task(void){
 		//TODO: check direction is down
 		start_pwm();
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT6);
 			stepCurrState = STEP_ERROR;						//T_STP13
+#ifdef SW_ESTOP
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;
+#endif
 		} else {
 			stepCurrState = STEP_FIND_HOME;					//T_STP14
 		}
@@ -162,9 +186,13 @@ void stepper_task(void){
 		//State action
 		//No action
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT7);
 			stepCurrState = STEP_ERROR;						//T_STP15
+#ifdef SW_ESTOP
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;
+#endif
 		} else if(step_run_done){
 			stepCurrState = STEP_STOP_STEPPER;				//T_STP17
 		} else {
@@ -176,9 +204,13 @@ void stepper_task(void){
 		stop_pwm();
 		stepper_disable();
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT8);
 			stepCurrState = STEP_ERROR;						//T_STP18
+#ifdef SW_ESTOP
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;
+#endif
 		} else {
 			stepCurrState = STEP_WAIT;						//T_STP19
 		}
@@ -190,8 +222,10 @@ void stepper_task(void){
 		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT9);
 			stepCurrState = STEP_ERROR;						//T_STP20
+#ifdef SW_ESTOP
 		} else if(!sys_ok){
-			stepCurrState = STEP_WAIT;
+			stepCurrState = STEP_ERROR;
+#endif
 		} else if(step_home_request){
 			step_home_request = 0;
 			stepCurrState = STEP_START_FIND_UP_LIMIT;		//T_STP25
@@ -219,9 +253,13 @@ void stepper_task(void){
 		}
 		//TODO: check directions
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT10);
 			stepCurrState = STEP_ERROR;						//T_STP23
+#ifdef SW_ESTOP
+		} else if(!sys_ok){
+			stepCurrState = STEP_ERROR;
+#endif
 		} else if(step_setpoint == step_position){
 			stepCurrState = STEP_WAIT;						//T_STP31
 		} else {
@@ -233,11 +271,13 @@ void stepper_task(void){
 		//State action
 		//No action
 		//State transition
-		if(is_lower_sw_pressed() || !sys_ok){
+		if(is_lower_sw_pressed()){
 			issue_warning(WARN_STEP_FAULT11);
 			stepCurrState = STEP_ERROR;						//T_STP27
+#ifdef SW_ESTOP
 		} else if(!sys_ok){
-			stepCurrState = STEP_ERROR;						//T_STP27
+			stepCurrState = STEP_ERROR;
+#endif
 		} else if(step_request && !step_run_done){	//New step request
 			step_request = 0;
 			stepCurrState = STEP_START_MOVE;				//T_STP26
@@ -252,7 +292,7 @@ void stepper_task(void){
 		stepper_disable();
 		stop_pwm();
 		//State transition
-		if(!is_lower_sw_pressed() && sys_ok){
+		if(!is_lower_sw_pressed()){
 			//stepCurrState = STEP_WAIT_HOME;						//T_STP30
 			stepCurrState = STEP_STOP_STEPPER;
 		} else {
@@ -278,7 +318,7 @@ void stepper_setup(void){
 	//Setup TA0.1 to pulse step pin
 	//Up mode, Set/Reset 50% duty
 	TA0CCR0 = STEP_TIME;
-	TA0CCR1 = STEP_TIME>>2;						//50% duty
+	TA0CCR1 = STEP_TIME>>1;						//50% duty
 	TA0CTL = TASSEL_2 + MC_0 + TACLR + ID_3;	//SMCLK, off, clear TAR, div8
 	TA0EX0 = TAIDEX_7;
 	TA0CCTL0 = CCIE;						//CCR0 interrupt enabled

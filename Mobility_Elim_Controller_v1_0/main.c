@@ -246,6 +246,14 @@ volatile uint8_t sys_ok = 0;
 
 /** END Monioring task globals **/
 
+/** Wire/bumper task globals **/
+uint8_t wire_bumper_status = 0;
+
+void wire_bumper_setup(void);
+void wire_bumper_task(void);
+
+/** END Wire/bumper task globals **/
+
 /** Main Loop **/
 
 int main(void) {
@@ -276,6 +284,7 @@ int main(void) {
 	stepper_setup();
 	roboclaw_setup();
 	monitor_setup();
+	wire_bumper_setup();
     // Enable Interrupts
     __bis_SR_register(GIE);
     while(1)
@@ -286,6 +295,7 @@ int main(void) {
         roboclaw_task();
         drill_task();
         stepper_task();
+        wire_bumper_task();
     }
 }
 
@@ -485,9 +495,25 @@ void roboclaw_task(void){
 			enc2_count = ((uint32_t)buf[0]<<24)|((uint32_t)buf[1]<<16)|((uint32_t)buf[2]<<8)|((uint32_t)buf[3]);
 		}
 		//Send encoder data to PC
+		/* Packet contents
+		 * byte 0: Encoder Delimiter
+		 * byte 1: Packet size (data only, excludes start/end delimeter)
+		 * byte 2-5: Encoder 1 data (MSbyte first)
+		 * byte 6-9: Encoder 2 data (MSbyte first)
+		 * byte 10: bumper/wire/estop byte:
+		 * 		bit7-6: ESTOP
+		 * 		bit5: Wire front
+		 * 		bit4: Wire back
+		 * 		bit3: Front bumper
+		 * 		bit2: Rear bumper
+		 * 		bit1: Right bumper
+		 * 		bit0: Left bumper
+		 * byte 11: battery voltage
+		 * byte 12: End delimiter
+		 */
 		if(pc_current_state != PC_DEBUG){
 			resp_buf[0] = ENCODER_DELIMITER;
-			resp_buf[1] = 8;	//Packet size
+			resp_buf[1] = 10;	//Packet size
 			resp_buf[2] = (uint8_t)(enc1_count >> 24);
 			resp_buf[3] = (uint8_t)(enc1_count >> 16);
 			resp_buf[4] = (uint8_t)(enc1_count >> 8);
@@ -496,8 +522,10 @@ void roboclaw_task(void){
 			resp_buf[7] = buf[1];
 			resp_buf[8] = buf[2];
 			resp_buf[9] = buf[3];
-			resp_buf[10] = MSG_END_DELIMITER;
-			dbg_uart_send_string(resp_buf,11);
+			resp_buf[10] = wire_bumper_status;
+			resp_buf[11] = (monitor_data.vsense_12V[0]>>4);
+			resp_buf[12] = MSG_END_DELIMITER;
+			dbg_uart_send_string(resp_buf,13);
 		}
 		//State transition
 		rcCurrState = RC_WAIT;						//T_DRV21
@@ -1243,6 +1271,57 @@ void monitor_task(void){
 }
 
 /** END Monitor Task Functions **/
+
+/** Wire/bumper task functions **/
+
+void wire_bumper_setup(void){
+	return;
+}
+
+/* Wire/bumper inputs
+ * Front:
+ * P6.7: front wire
+ * P6.6: Left Bumper front
+ * P6.5: Front Bumper left
+ * P6.4: Front Bumper right
+ * P6.3: Right Bumper front
+ * Rear:
+ * P3.2(SCK): back wire
+ * P3.1(SO): Back Bumper right
+ * P3.0(SI): Right Bumper back
+ * P2.3(/CS): Back Bumper left
+ * <TODO>: Left Bumper back
+ *
+ * Packet byte:
+ * 		bit7-6: ESTOP
+ * 		bit5: Wire front
+ * 		bit4: Wire back
+ * 		bit3: Front bumper
+ * 		bit2: Rear bumper
+ * 		bit1: Right bumper
+ * 		bit0: Left bumper
+ */
+
+void wire_bumper_task(void){
+	wire_bumper_status = 0;
+	//ESTOP
+	if(monitor_data.estop_status) wire_bumper_status |= BIT7+BIT6;
+	//Wire front
+	if(P6IN & BIT7) wire_bumper_status |= BIT5;
+	//Wire back
+	if(P3IN & BIT2) wire_bumper_status |= BIT4;
+	//Front bumper
+	if((P6IN & BIT4) || (P6IN & BIT5)) wire_bumper_status |= BIT3;
+	//Rear bumper
+	if((P3IN & BIT1) || (P2IN & BIT3)) wire_bumper_status |= BIT2;
+	//Right bumper
+	if((P6IN & BIT3) || (P3IN & BIT0)) wire_bumper_status |= BIT1;
+	//Left bumper
+	if((P6IN & BIT6)) wire_bumper_status |= BIT0;
+	return;
+}
+
+/** END Wire/bumper task functions **/
 
 /** Debug Task functions **/
 

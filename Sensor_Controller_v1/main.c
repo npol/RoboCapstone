@@ -133,6 +133,19 @@ uint16_t adc_data_ready = 0x0000;	//Set bit indicates new conversion (set by adc
 
 /** END ADC task globals **/
 
+/** Wire task globals **/
+#define WIRE_THRESH 0x0880//0x08A0
+
+void wire_setup(void);
+void wire_task(void);
+/** END Wire task globals **/
+
+/** Bumper task globals **/
+#define BUMP_THRESH 0x0300
+
+void bumper_setup(void);
+void bumper_task(void);
+
 /** CAN task globals **/
 void can_task(void);
 
@@ -202,19 +215,81 @@ int main(void) {
 	setup_dbg_uart();
 	monitor_setup();
 	adc_setup();
-	CAN_SPI_setup(0, 1);	//Idle Low, out on falling edge
+	wire_setup();
+	bumper_setup();
+	//CAN_SPI_setup(0, 1);	//Idle Low, out on falling edge
     // Enable Interrupts
     __bis_SR_register(GIE);
-    setup_mcp2515();
+    //setup_mcp2515();
     while(1)
     {
         debug_task();
         //monitor_task();
-        can_task();
+        //can_task();
+        wire_task();
+        bumper_task();
     }
 }
 
 /** END Main Loop **/
+
+/** Wire sensor functions **/
+void wire_setup(void){
+	P4DIR |= BIT0;
+	P4OUT &= ~BIT0;
+}
+
+void wire_task(void){
+	if(adc_output_buffer[0]>WIRE_THRESH){
+		P4OUT |= BIT0;
+		led_P1_0_on();
+	} else {
+		P4OUT &= ~BIT0;
+		led_P1_0_off();
+	}
+	return;
+}
+
+/** Bumper sensor functions **/
+void bumper_setup(void){
+	P4DIR |= BIT1 + BIT2 + BIT4 + BIT6;
+	P4OUT &= ~(BIT1 + BIT2 + BIT4 + BIT6);
+}
+
+
+void bumper_task(void){
+	uint8_t any_bumper_triggered = 0;
+	if(adc_output_buffer[4] < BUMP_THRESH){
+		P4OUT |= BIT1;
+		any_bumper_triggered = 1;
+	} else {
+		P4OUT &= ~BIT1;
+	}
+	if(adc_output_buffer[5] < BUMP_THRESH){
+		P4OUT |= BIT2;
+		any_bumper_triggered = 1;
+	} else {
+		P4OUT &= ~BIT2;
+	}
+	if(adc_output_buffer[6] < BUMP_THRESH){
+		P4OUT |= BIT4;
+		any_bumper_triggered = 1;
+	} else {
+		P4OUT &= ~BIT4;
+	}
+	if(adc_output_buffer[7] < BUMP_THRESH){
+		P4OUT |= BIT6;
+		any_bumper_triggered = 1;
+	} else {
+		P4OUT &= ~BIT6;
+	}
+	if(any_bumper_triggered){
+		led_P2_2_on();
+	} else {
+		led_P2_2_off();
+	}
+	return;
+}
 
 /** CAN task functions **/
 void can_task(void){
